@@ -1,0 +1,19 @@
+# ============================================================
+# Cloudflare — configuração de deploy (Workers Static Assets)
+# Serve a SPA gerada pelo Vite em ./dist.
+#
+# Deploy via CLI:  npm run deploy   (roda "vite build" + "wrangler deploy")
+#
+# No painel do Cloudflare Pages, configure:
+#   Build command:          npm run build
+#   Build output directory: dist
+# ============================================================
+
+name = "sistema-tato"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./dist"
+# Faz o roteamento client-side do React Router funcionar em reloads/URLs diretas:
+# qualquer rota não encontrada cai no index.html.
+not_found_handling = "single-page-application"
