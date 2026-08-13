@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
+import { ClientFormDialog } from "@/components/ClientFormDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -58,6 +59,36 @@ export function ShowForm() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
+  const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+
+  /**
+   * Cliente recém-cadastrado pelo diálogo: entra na lista (mantendo a ordem
+   * alfabética do select) e fica pendente de seleção.
+   *
+   * A seleção NÃO pode acontecer aqui. O Radix Select mantém um <select>
+   * nativo espelhado e dispara um evento `change` de verdade quando o valor
+   * muda; se a <option> do cliente novo ainda não estiver no DOM (o que
+   * acontece quando lista e valor mudam no mesmo commit), o navegador força o
+   * valor de volta para "" e o onValueChange devolve string vazia, desfazendo
+   * a seleção. Por isso o id fica pendente e só é aplicado no efeito abaixo,
+   * depois que a opção existe.
+   */
+  function handleClientSaved(client: Client) {
+    setClients((prev) =>
+      [...prev.filter((c) => c.id !== client.id), client].sort((a, b) =>
+        a.name.localeCompare(b.name, "pt-BR")
+      )
+    );
+    setPendingClientId(client.id);
+  }
+
+  useEffect(() => {
+    if (!pendingClientId) return;
+    if (!clients.some((c) => c.id === pendingClientId)) return;
+    setForm((prev) => ({ ...prev, client_id: pendingClientId }));
+    setPendingClientId(null);
+  }, [pendingClientId, clients]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -176,26 +207,42 @@ export function ShowForm() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="client_id">Cliente</Label>
-                <Select
-                  value={form.client_id || undefined}
-                  onValueChange={(v) => update("client_id", v)}
-                >
-                  <SelectTrigger id="client_id">
-                    <SelectValue placeholder="Selecione um cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.length === 0 && (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Nenhum cliente cadastrado
-                      </div>
-                    )}
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  {/* "" (e não undefined) mantém o Select controlado quando
+                      ainda não há cliente; o Radix exibe o placeholder do
+                      mesmo jeito. */}
+                  <Select
+                    value={form.client_id}
+                    onValueChange={(v) => update("client_id", v)}
+                  >
+                    <SelectTrigger id="client_id" className="flex-1">
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Nenhum cliente cadastrado
+                        </div>
+                      )}
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => setClientDialogOpen(true)}
+                    title="Cadastrar novo cliente"
+                    aria-label="Cadastrar novo cliente"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -300,6 +347,12 @@ export function ShowForm() {
           </form>
         </CardContent>
       </Card>
+
+      <ClientFormDialog
+        open={clientDialogOpen}
+        onOpenChange={setClientDialogOpen}
+        onSaved={handleClientSaved}
+      />
     </div>
   );
 }

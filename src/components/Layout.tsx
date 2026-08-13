@@ -1,5 +1,12 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { CalendarDays, CheckCircle2, LogOut, Music4, Plus } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  LogOut,
+  Music4,
+  Plus,
+  Users,
+} from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -9,6 +16,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/", label: "Dashboard", icon: CalendarDays, end: true },
   { to: "/shows/fechados", label: "Fechados", icon: CheckCircle2, end: false },
+  { to: "/clientes", label: "Clientes", icon: Users, end: false },
 ];
 
 export function Layout() {

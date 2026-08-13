@@ -29,6 +29,7 @@ export type Client = {
   name: string;
   phone: string | null;
   email: string | null;
+  notes: string | null;
   created_at: string;
 };
 
@@ -48,6 +49,15 @@ export type Show = {
 /** Show com os dados do cliente relacionado (join). */
 export type ShowWithClient = Show & {
   clients: Pick<Client, "id" | "name"> | null;
+};
+
+/**
+ * Cliente com a contagem de shows vinculados.
+ * O PostgREST devolve agregações de relação como array de um elemento
+ * (`shows: [{ count: 3 }]`), inclusive quando o total é zero.
+ */
+export type ClientWithShowCount = Client & {
+  shows: { count: number }[];
 };
 
 export type Proposal = {
