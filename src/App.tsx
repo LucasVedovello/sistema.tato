@@ -4,6 +4,7 @@ import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Calendar } from "@/pages/Calendar";
 import { Clients } from "@/pages/Clients";
+import { Contract } from "@/pages/Contract";
 import { ClosedShows } from "@/pages/ClosedShows";
 import { Dashboard } from "@/pages/Dashboard";
 import { Login } from "@/pages/Login";
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/shows/novo" element={<ShowForm />} />
           <Route path="/shows/:id/editar" element={<ShowForm />} />
+          <Route path="/shows/:id/contrato" element={<Contract />} />
           <Route path="/shows/fechados" element={<ClosedShows />} />
           <Route path="/calendario" element={<Calendar />} />
           <Route path="/clientes" element={<Clients />} />

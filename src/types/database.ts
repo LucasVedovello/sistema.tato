@@ -29,6 +29,8 @@ export type Client = {
   name: string;
   phone: string | null;
   email: string | null;
+  /** CPF/CNPJ — usado na qualificação das partes no contrato. */
+  document: string | null;
   notes: string | null;
   created_at: string;
 };
@@ -41,6 +43,7 @@ export type Show = {
   location: string | null;
   status: ShowStatus;
   value_cents: number | null;
+  payment_terms: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -76,12 +79,28 @@ export type MessageTemplate = {
   variables: Record<string, unknown> | null;
 };
 
+/** Chaves de T cujo tipo aceita null. */
+type NullableKeys<T> = {
+  [K in keyof T]-?: null extends T[K] ? K : never;
+}[keyof T];
+
+/**
+ * Torna opcionais as colunas que aceitam null.
+ *
+ * No Postgres uma coluna anulável pode simplesmente ser omitida no INSERT
+ * (entra como NULL). Sem isso, cada coluna nova anulável quebrava a
+ * compilação de todo insert existente — e a "correção" natural (mandar o
+ * campo como null em toda gravação) apagaria dados em updates parciais.
+ */
+type OptionalNullable<T> = Omit<T, NullableKeys<T>> &
+  Partial<Pick<T, NullableKeys<T>>>;
+
 export interface Database {
   public: {
     Tables: {
       clients: {
         Row: Client;
-        Insert: Omit<Client, "id" | "created_at"> & {
+        Insert: OptionalNullable<Omit<Client, "id" | "created_at">> & {
           id?: string;
           created_at?: string;
         };
@@ -90,7 +109,7 @@ export interface Database {
       };
       shows: {
         Row: Show;
-        Insert: Omit<Show, "id" | "created_at" | "updated_at"> & {
+        Insert: OptionalNullable<Omit<Show, "id" | "created_at" | "updated_at">> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
@@ -100,13 +119,13 @@ export interface Database {
       };
       proposals: {
         Row: Proposal;
-        Insert: Omit<Proposal, "id"> & { id?: string };
+        Insert: OptionalNullable<Omit<Proposal, "id">> & { id?: string };
         Update: Partial<Omit<Proposal, "id">>;
         Relationships: [];
       };
       message_templates: {
         Row: MessageTemplate;
-        Insert: Omit<MessageTemplate, "id"> & { id?: string };
+        Insert: OptionalNullable<Omit<MessageTemplate, "id">> & { id?: string };
         Update: Partial<Omit<MessageTemplate, "id">>;
         Relationships: [];
       };

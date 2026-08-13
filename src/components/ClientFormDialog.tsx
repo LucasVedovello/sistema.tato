@@ -24,7 +24,7 @@ interface ClientFormDialogProps {
   onSaved: (client: Client) => void;
 }
 
-const empty = { name: "", phone: "", email: "", notes: "" };
+const empty = { name: "", phone: "", email: "", document: "", notes: "" };
 
 /**
  * Formulário de cliente em diálogo. É o mesmo componente usado na seção
@@ -53,6 +53,7 @@ export function ClientFormDialog({
             name: client.name,
             phone: client.phone ?? "",
             email: client.email ?? "",
+            document: client.document ?? "",
             notes: client.notes ?? "",
           }
         : empty
@@ -72,6 +73,7 @@ export function ClientFormDialog({
       name: form.name.trim(),
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
+      document: form.document.trim() || null,
       notes: form.notes.trim() || null,
     };
 
@@ -140,6 +142,19 @@ export function ClientFormDialog({
                 placeholder="contato@exemplo.com"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="client-document">CPF / CNPJ</Label>
+            <Input
+              id="client-document"
+              value={form.document}
+              onChange={(e) => update("document", e.target.value)}
+              placeholder="000.000.000-00"
+            />
+            <p className="text-xs text-muted-foreground">
+              Usado na qualificação das partes no contrato.
+            </p>
           </div>
 
           <div className="space-y-2">

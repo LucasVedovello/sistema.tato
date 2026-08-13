@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,8 @@ export function ShowForm() {
   const [error, setError] = useState<string | null>(null);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+  /** Status com que o show foi carregado, para detectar a virada p/ "fechado". */
+  const [initialStatus, setInitialStatus] = useState<ShowStatus | null>(null);
 
   /**
    * Cliente recém-cadastrado pelo diálogo: entra na lista (mantendo a ordem
@@ -121,6 +123,7 @@ export function ShowForm() {
       if (error) {
         setError(error.message);
       } else if (data) {
+        setInitialStatus(data.status);
         setForm({
           artist_name: data.artist_name,
           client_id: data.client_id ?? "",
@@ -153,18 +156,30 @@ export function ShowForm() {
       notes: form.notes.trim() || null,
     };
 
-    const query = isEditing
-      ? supabase.from("shows").update(payload).eq("id", id!)
-      : supabase.from("shows").insert(payload);
+    // .select("id").single() para saber o id também no cadastro novo — ele é
+    // necessário para abrir o contrato logo depois.
+    const { data, error } = isEditing
+      ? await supabase
+          .from("shows")
+          .update(payload)
+          .eq("id", id!)
+          .select("id")
+          .single()
+      : await supabase.from("shows").insert(payload).select("id").single();
 
-    const { error } = await query;
     setSaving(false);
 
     if (error) {
       setError(error.message);
       return;
     }
-    navigate("/");
+
+    // Virou "fechado" agora? Segue direto para o contrato.
+    const savedId = data?.id ?? id;
+    const acabouDeFechar =
+      form.status === "fechado" && initialStatus !== "fechado";
+
+    navigate(acabouDeFechar && savedId ? `/shows/${savedId}/contrato` : "/");
   }
 
   async function handleDelete() {
@@ -185,10 +200,22 @@ export function ShowForm() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-        <ArrowLeft className="h-4 w-4" />
-        Voltar
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+        {isEditing && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/shows/${id}/contrato`)}
+          >
+            <FileText className="h-4 w-4" />
+            Criar contrato
+          </Button>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
