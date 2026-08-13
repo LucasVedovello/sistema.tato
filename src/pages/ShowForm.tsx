@@ -36,6 +36,8 @@ interface FormState {
   location: string;
   status: ShowStatus;
   value: string;
+  has_production: boolean;
+  payment_terms: string;
   notes: string;
 }
 
@@ -46,6 +48,8 @@ const emptyForm: FormState = {
   location: "",
   status: "criado",
   value: "",
+  has_production: false,
+  payment_terms: "",
   notes: "",
 };
 
@@ -131,6 +135,8 @@ export function ShowForm() {
           location: data.location ?? "",
           status: data.status,
           value: data.value_cents ? String(data.value_cents / 100) : "",
+          has_production: data.has_production,
+          payment_terms: data.payment_terms ?? "",
           notes: data.notes ?? "",
         });
       }
@@ -153,6 +159,8 @@ export function ShowForm() {
       location: form.location.trim() || null,
       status: form.status,
       value_cents: form.value ? parseCurrencyToCents(form.value) : null,
+      has_production: form.has_production,
+      payment_terms: form.payment_terms.trim() || null,
       notes: form.notes.trim() || null,
     };
 
@@ -333,6 +341,34 @@ export function ShowForm() {
                 onChange={(e) => update("location", e.target.value)}
                 placeholder="Cidade / casa de show"
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="has_production">Terá produção?</Label>
+                <Select
+                  value={form.has_production ? "sim" : "nao"}
+                  onValueChange={(v) => update("has_production", v === "sim")}
+                >
+                  <SelectTrigger id="has_production">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment_terms">Forma de pagamento</Label>
+                <Input
+                  id="payment_terms"
+                  value={form.payment_terms}
+                  onChange={(e) => update("payment_terms", e.target.value)}
+                  placeholder="50% na assinatura e 50% no dia"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

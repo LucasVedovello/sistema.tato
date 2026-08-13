@@ -44,6 +44,8 @@ export type Show = {
   status: ShowStatus;
   value_cents: number | null;
   payment_terms: string | null;
+  /** Se o show terá produção contratada. */
+  has_production: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
