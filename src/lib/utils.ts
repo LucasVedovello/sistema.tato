@@ -24,6 +24,20 @@ export function parseCurrencyToCents(input: string): number {
   return Number.isFinite(value) ? Math.round(value * 100) : 0;
 }
 
+/**
+ * Converte "2026-10-03" em Date no fuso LOCAL.
+ *
+ * `new Date("2026-10-03")` trata a string como UTC meia-noite; ao formatar em
+ * pt-BR (UTC-3) isso exibia o dia anterior — um show do dia 03 aparecia como
+ * 02. Datas de evento no banco são `date` (sem hora), então têm que ser lidas
+ * como data local, não como instante.
+ */
+export function parseDateOnly(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(value);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
 /** Formata uma data ISO para o padrão pt-BR (dd/mm/aaaa). */
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
@@ -31,5 +45,5 @@ export function formatDate(date: string | null | undefined): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-  }).format(new Date(date));
+  }).format(parseDateOnly(date));
 }
