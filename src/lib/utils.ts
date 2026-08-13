@@ -38,6 +38,14 @@ export function parseDateOnly(value: string): Date {
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
+/** Date -> "AAAA-MM-DD" no fuso local. Contraparte de parseDateOnly. */
+export function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Formata uma data ISO para o padrão pt-BR (dd/mm/aaaa). */
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—";

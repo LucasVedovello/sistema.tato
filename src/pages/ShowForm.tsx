@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
@@ -54,7 +54,12 @@ export function ShowForm() {
   const isEditing = Boolean(id);
   const navigate = useNavigate();
 
-  const [form, setForm] = useState<FormState>(emptyForm);
+  // O calendário manda ?data=AAAA-MM-DD ao clicar num dia livre.
+  const [searchParams] = useSearchParams();
+  const [form, setForm] = useState<FormState>(() => {
+    const preset = searchParams.get("data");
+    return preset ? { ...emptyForm, event_date: preset } : emptyForm;
+  });
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);

@@ -13,7 +13,7 @@ import type { ShowStatus } from "@/types/database";
  */
 export const STATUS_STYLES: Record<
   ShowStatus,
-  { label: string; badge: string; dot: string; column: string }
+  { label: string; badge: string; dot: string; column: string; cell: string }
 > = {
   criado: {
     label: "Criado",
@@ -21,6 +21,7 @@ export const STATUS_STYLES: Record<
       "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700",
     dot: "bg-slate-400",
     column: "border-t-4 border-t-slate-400",
+    cell: "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700",
   },
   em_fechamento: {
     label: "Em fechamento",
@@ -28,6 +29,7 @@ export const STATUS_STYLES: Record<
       "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800",
     dot: "bg-amber-500",
     column: "border-t-4 border-t-amber-500",
+    cell: "bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200 dark:bg-amber-950 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900",
   },
   fechado: {
     label: "Fechado",
@@ -35,6 +37,7 @@ export const STATUS_STYLES: Record<
       "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800",
     dot: "bg-emerald-500",
     column: "border-t-4 border-t-emerald-500",
+    cell: "bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-950 dark:border-emerald-700 dark:text-emerald-100 dark:hover:bg-emerald-900",
   },
   cancelado: {
     label: "Cancelado",
@@ -42,5 +45,18 @@ export const STATUS_STYLES: Record<
       "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800",
     dot: "bg-rose-500",
     column: "border-t-4 border-t-rose-500",
+    cell: "bg-rose-100 border-rose-300 text-rose-900 hover:bg-rose-200 dark:bg-rose-950 dark:border-rose-700 dark:text-rose-100 dark:hover:bg-rose-900",
   },
 };
+
+/**
+ * Prioridade de exibição quando um mesmo dia tem mais de um show: o status
+ * mais "firme" define a cor da célula do calendário. `cancelado` fica de fora
+ * de propósito — um show cancelado não ocupa a data, então o dia continua
+ * livre e clicável para agendar.
+ */
+export const CALENDAR_STATUS_PRIORITY: ShowStatus[] = [
+  "fechado",
+  "em_fechamento",
+  "criado",
+];

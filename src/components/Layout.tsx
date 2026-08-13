@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   CheckCircle2,
+  LayoutDashboard,
   LogOut,
   Music4,
   Plus,
@@ -14,7 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: CalendarDays, end: true },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/calendario", label: "Calendário", icon: CalendarDays, end: false },
   { to: "/shows/fechados", label: "Fechados", icon: CheckCircle2, end: false },
   { to: "/clientes", label: "Clientes", icon: Users, end: false },
 ];

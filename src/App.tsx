@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Calendar } from "@/pages/Calendar";
 import { Clients } from "@/pages/Clients";
 import { ClosedShows } from "@/pages/ClosedShows";
 import { Dashboard } from "@/pages/Dashboard";
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/shows/novo" element={<ShowForm />} />
           <Route path="/shows/:id/editar" element={<ShowForm />} />
           <Route path="/shows/fechados" element={<ClosedShows />} />
+          <Route path="/calendario" element={<Calendar />} />
           <Route path="/clientes" element={<Clients />} />
         </Route>
       </Route>
