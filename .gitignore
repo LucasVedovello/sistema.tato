@@ -9,10 +9,14 @@ dist-ssr/
 build/
 *.local
 
-# Environment (NUNCA commitar chaves!)
+# Environment (NUNCA commitar chaves secretas!)
 .env
 .env.*
 !.env.example
+# .env.production contém APENAS a URL e a anon key do Supabase, que são
+# públicas por design (o acesso é controlado por RLS). Precisa ser versionado
+# porque o Vite injeta essas variáveis em build time, no CI do Cloudflare.
+!.env.production
 
 # Cloudflare / Wrangler
 .wrangler/
