@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { CalendarDays, CheckCircle2, LogOut, Music4, Plus } from "lucide-react";
 
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,10 @@ export function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="border-b bg-background">
+    // No claro a página é cinza e o header branco; no escuro invertemos a
+    // elevação (página no tom mais escuro, header no tom de card).
+    <div className="min-h-screen bg-muted/30 dark:bg-background">
+      <header className="border-b bg-background dark:bg-card">
         <div className="container flex h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-semibold">
             <Music4 className="h-5 w-5 text-primary" />
@@ -54,6 +57,7 @@ export function Layout() {
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Novo show</span>
             </Button>
+            <ThemeToggle />
             <Button
               size="icon"
               variant="ghost"

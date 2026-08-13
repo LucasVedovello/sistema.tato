@@ -27,11 +27,14 @@
   }
 
   .dark {
+    /* Página é a camada mais escura; card/popover ficam um degrau acima para
+       criar elevação. No preset padrão do shadcn os três têm o mesmo valor, o
+       que faz os cards sumirem contra o fundo. */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 9.5%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 9.5%;
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -41,9 +44,12 @@
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    /* O padrão do shadcn aqui é 30.6% de luminosidade — escuro demais para uso
+       como TEXTO (`text-destructive` nas mensagens de erro) sobre fundo escuro.
+       Este tom mais vivo funciona tanto como texto quanto como fundo de botão. */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
+    --border: 217.2 32.6% 20%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
