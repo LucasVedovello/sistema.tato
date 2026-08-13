@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -39,7 +40,7 @@ export function ClosedShows() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
@@ -49,6 +50,7 @@ export function ClosedShows() {
             {shows.length} show(s) · Total {formatCurrency(total)}
           </p>
         </div>
+        <ExportExcelButton variant="default" />
       </div>
 
       {error && (
