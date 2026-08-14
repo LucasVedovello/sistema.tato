@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { TasksSummary } from "@/components/TasksSummary";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -17,6 +18,8 @@ export function Dashboard() {
         </div>
         <ExportExcelButton />
       </div>
+
+      <TasksSummary />
 
       <KanbanBoard onOpenShow={(id) => navigate(`/shows/${id}`)} />
     </div>

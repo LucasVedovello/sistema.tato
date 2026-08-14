@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
+import { ShowTasks } from "@/components/ShowTasks";
 import { ShowTimeline } from "@/components/ShowTimeline";
 import { Button } from "@/components/ui/button";
 import {
@@ -441,7 +442,12 @@ export function ShowForm() {
           </CardContent>
         </Card>
 
-        {isEditing && id && <ShowTimeline showId={id} />}
+        {isEditing && id && (
+          <div className="space-y-4">
+            <ShowTasks showId={id} />
+            <ShowTimeline showId={id} />
+          </div>
+        )}
       </div>
 
       <ClientFormDialog

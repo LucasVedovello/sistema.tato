@@ -79,6 +79,20 @@ export type ShowActivity = {
   created_at: string;
 };
 
+export type ShowTask = {
+  id: string;
+  show_id: string;
+  title: string;
+  due_date: string | null;
+  done: boolean;
+  created_at: string;
+};
+
+/** Tarefa acompanhada do show a que pertence (para o resumo do Dashboard). */
+export type ShowTaskWithShow = ShowTask & {
+  shows: Pick<Show, "id" | "artist_name"> | null;
+};
+
 export type Proposal = {
   id: string;
   show_id: string;
@@ -140,6 +154,15 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Omit<ShowActivity, "id" | "created_at">>;
+        Relationships: [];
+      };
+      show_tasks: {
+        Row: ShowTask;
+        Insert: OptionalNullable<Omit<ShowTask, "id" | "created_at">> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<ShowTask, "id" | "created_at">>;
         Relationships: [];
       };
       proposals: {
