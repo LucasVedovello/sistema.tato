@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
+import { ShowTimeline } from "@/components/ShowTimeline";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
-import { formatCurrency, parseCurrencyToCents } from "@/lib/utils";
+import { STATUS_STYLES } from "@/lib/status";
+import { cn, formatCurrency, parseCurrencyToCents } from "@/lib/utils";
 import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
@@ -207,7 +209,14 @@ export function ShowForm() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    // Cadastro novo é uma coluna estreita; a ficha de um show existente abre
+    // em duas colunas, com a timeline ao lado.
+    <div
+      className={cn(
+        "mx-auto space-y-4",
+        isEditing ? "max-w-6xl" : "max-w-2xl"
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
@@ -225,13 +234,29 @@ export function ShowForm() {
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">
-            {isEditing ? "Editar show" : "Novo show"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div
+        className={cn(
+          isEditing &&
+            "grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+        )}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
+              {isEditing ? "Ficha do show" : "Novo show"}
+              {isEditing && (
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs font-medium",
+                    STATUS_STYLES[form.status].badge
+                  )}
+                >
+                  {STATUS_STYLES[form.status].label}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="artist_name">Artista *</Label>
@@ -413,8 +438,11 @@ export function ShowForm() {
               </div>
             </div>
           </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {isEditing && id && <ShowTimeline showId={id} />}
+      </div>
 
       <ClientFormDialog
         open={clientDialogOpen}

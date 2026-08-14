@@ -270,7 +270,7 @@ export function Calendar() {
               return (
                 <button
                   key={show.id}
-                  onClick={() => navigate(`/shows/${show.id}/editar`)}
+                  onClick={() => navigate(`/shows/${show.id}`)}
                   className="flex w-full items-start justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent"
                 >
                   <div className="min-w-0">

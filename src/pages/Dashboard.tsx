@@ -18,7 +18,7 @@ export function Dashboard() {
         <ExportExcelButton />
       </div>
 
-      <KanbanBoard onOpenShow={(id) => navigate(`/shows/${id}/editar`)} />
+      <KanbanBoard onOpenShow={(id) => navigate(`/shows/${id}`)} />
     </div>
   );
 }

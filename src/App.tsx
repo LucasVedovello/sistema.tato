@@ -19,9 +19,14 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/shows/novo" element={<ShowForm />} />
+          <Route path="/shows/fechados" element={<ClosedShows />} />
+          {/* Ficha do show. O React Router v6 pontua segmento estático acima
+              de dinâmico, então /shows/novo e /shows/fechados continuam
+              ganhando de /shows/:id independentemente da ordem aqui. */}
+          <Route path="/shows/:id" element={<ShowForm />} />
+          {/* Rota antiga, mantida para links já salvos. */}
           <Route path="/shows/:id/editar" element={<ShowForm />} />
           <Route path="/shows/:id/contrato" element={<Contract />} />
-          <Route path="/shows/fechados" element={<ClosedShows />} />
           <Route path="/calendario" element={<Calendar />} />
           <Route path="/clientes" element={<Clients />} />
         </Route>

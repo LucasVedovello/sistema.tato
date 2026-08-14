@@ -70,7 +70,7 @@ export function ClosedShows() {
           {shows.map((show) => (
             <button
               key={show.id}
-              onClick={() => navigate(`/shows/${show.id}/editar`)}
+              onClick={() => navigate(`/shows/${show.id}`)}
               className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-accent/50"
             >
               <div className="min-w-0">

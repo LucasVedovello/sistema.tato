@@ -65,6 +65,20 @@ export type ClientWithShowCount = Client & {
   shows: { count: number }[];
 };
 
+/** Tipo de evento na timeline do show. */
+export type ActivityKind = "created" | "status" | "note" | "message";
+
+export type ShowActivity = {
+  id: string;
+  show_id: string;
+  kind: ActivityKind;
+  content: string | null;
+  from_status: ShowStatus | null;
+  to_status: ShowStatus | null;
+  author_email: string | null;
+  created_at: string;
+};
+
 export type Proposal = {
   id: string;
   show_id: string;
@@ -117,6 +131,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Omit<Show, "id" | "created_at">>;
+        Relationships: [];
+      };
+      show_activities: {
+        Row: ShowActivity;
+        Insert: OptionalNullable<Omit<ShowActivity, "id" | "created_at">> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<ShowActivity, "id" | "created_at">>;
         Relationships: [];
       };
       proposals: {
