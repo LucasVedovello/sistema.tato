@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   LayoutDashboard,
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/calendario", label: "Calendário", icon: CalendarDays, end: false },
   { to: "/shows/fechados", label: "Fechados", icon: CheckCircle2, end: false },
   { to: "/clientes", label: "Clientes", icon: Users, end: false },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3, end: false },
 ];
 
 export function Layout() {

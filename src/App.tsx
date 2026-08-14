@@ -8,6 +8,7 @@ import { Contract } from "@/pages/Contract";
 import { ClosedShows } from "@/pages/ClosedShows";
 import { Dashboard } from "@/pages/Dashboard";
 import { Login } from "@/pages/Login";
+import { Reports } from "@/pages/Reports";
 import { ShowForm } from "@/pages/ShowForm";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/shows/:id/contrato" element={<Contract />} />
           <Route path="/calendario" element={<Calendar />} />
           <Route path="/clientes" element={<Clients />} />
+          <Route path="/relatorios" element={<Reports />} />
         </Route>
       </Route>
 
