@@ -52,6 +52,9 @@ As migrations ficam em [`supabase/migrations`](./supabase/migrations). Tabelas c
 - **shows** — `id, artist_name, client_id, event_date, location, status, value_cents, notes, created_at, updated_at`
 - **proposals** — `id, show_id, template_used, sent_at, whatsapp_message_id, status`
 - **message_templates** — `id, name, content, variables (jsonb)`
+- **show_activities** — timeline do show (criação, status, notas, contrato, assinaturas)
+- **show_tasks** — tarefas do show
+- **show_contracts** — contratos emitidos, com as duas assinaturas (ver abaixo)
 
 O `status` do show é um enum: `criado`, `em_fechamento`, `fechado`, `cancelado`.
 **RLS** está habilitado em todas as tabelas, com acesso liberado apenas para usuários **autenticados**.
@@ -70,6 +73,54 @@ npx supabase db push
 ```
 
 > Valores monetários são armazenados em **centavos** (`value_cents`, inteiro) para evitar erros de ponto flutuante.
+
+## Contratos com assinatura eletrônica
+
+O contrato sai dos **PDFs-modelo** guardados no bucket privado `contratos` do
+Storage — hoje "Contrato Base Carnellos" e "Contrato Base Produção". O PDF
+original nunca é rediagramado: o app renderiza cada página como fundo e
+sobrepõe os dados do show e, depois, as assinaturas (jsPDF + pdf.js), do mesmo
+jeito que o projeto odonto-sign.
+
+Fluxo, na ficha do show (`/shows/:id`), card **Contratos**:
+
+1. **Criar contrato** → escolha do modelo e dos campos que o cadastro não tem
+   (endereço do contratante, nome do evento, horário). Gera
+   `preparado/<storage_key>.pdf` no bucket e a linha em `show_contracts`.
+2. **Link do cliente** → `/assinar/<token>`, página pública, sem login. O
+   cliente lê o documento e assina no campo sobre a linha do CONTRATANTE.
+3. Só então o campo do **contratado** é liberado em `/contratos/:id`. Ao
+   assinar, o PDF final com as duas assinaturas vai para
+   `assinado/<storage_key>.pdf`.
+4. Emissão e assinaturas entram na **timeline do show** por gatilho no banco.
+
+A ordem é garantida pelo banco (trigger `enforce_contract_signature_order`),
+não só pela interface.
+
+### Onde ficam os segredos
+
+Cada contrato tem **dois** segredos distintos: `public_token` (o link de
+assinatura) e `storage_key` (o nome dos PDFs no bucket). Eles são separados
+porque nome de arquivo vaza com mais facilidade do que linha de tabela, e quem
+tem o token consegue assinar em nome do cliente.
+
+### Edge Function `contrato-pdf`
+
+O papel `anon` **não tem acesso nenhum** ao bucket. Dar a ele permissão de
+leitura sobre os PDFs também daria permissão de **listagem** — é a mesma
+permissão de `select` — e qualquer um com a chave pública do projeto poderia
+enumerar e baixar contratos alheios. Por isso o PDF do cliente é servido pela
+Edge Function [`contrato-pdf`](./supabase/functions/contrato-pdf/index.ts), que
+valida o token e devolve só aquele arquivo.
+
+Ela **não** é publicada pelo Cloudflare; quando mudar, republique com:
+
+```bash
+npx supabase functions deploy contrato-pdf --project-ref iwqshcdqgwhglqknuxhn --no-verify-jwt
+```
+
+> `--no-verify-jwt` é proposital: quem chama é o cliente que vai assinar, sem
+> sessão no sistema. A autorização é o token do contrato.
 
 ## Build
 
@@ -111,6 +162,7 @@ sistema-tato/
 │   └── main.tsx          # entrypoint
 ├── supabase/
 │   ├── migrations/       # schema SQL
+│   ├── functions/        # Edge Functions (contrato-pdf)
 │   └── config.toml
 ├── wrangler.toml         # deploy Cloudflare
 ├── .env.example
@@ -123,3 +175,7 @@ sistema-tato/
 2. **Dashboard** — shows agrupados por status, com cores distintas por status.
 3. **Cadastro/edição de show** — formulário completo com cliente, data, valor e status.
 4. **Shows fechados** — lista dos shows com status `fechado` e total faturado.
+5. **Ficha do show** — dados, tarefas, timeline e contratos.
+6. **Contrato** (`/contratos/:id`) — documento, status das assinaturas, link do
+   cliente e assinatura do contratado.
+7. **Assinatura do cliente** (`/assinar/:token`) — pública, sem login.

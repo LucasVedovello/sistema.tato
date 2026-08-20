@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
+import { ShowContracts } from "@/components/ShowContracts";
 import { ShowTasks } from "@/components/ShowTasks";
 import { ShowTimeline } from "@/components/ShowTimeline";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,19 @@ export function ShowForm() {
     setPendingClientId(null);
   }, [pendingClientId, clients]);
 
+  /**
+   * Leva o olho até o card de contratos. É para lá que aponta tanto o botão
+   * do cabeçalho quanto o fechamento do show — e como a ficha já é a rota
+   * atual, navegar não faria nada visível.
+   */
+  function scrollToContracts() {
+    window.setTimeout(() => {
+      document
+        .querySelector('[data-testid="contracts"]')
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -190,7 +204,14 @@ export function ShowForm() {
     const acabouDeFechar =
       form.status === "fechado" && initialStatus !== "fechado";
 
-    navigate(acabouDeFechar && savedId ? `/shows/${savedId}/contrato` : "/");
+    // Show fechado é show que vira contrato: em vez do dashboard, a ficha —
+    // com o card de contratos à vista.
+    if (acabouDeFechar && savedId) {
+      navigate(`/shows/${savedId}`);
+      scrollToContracts();
+      return;
+    }
+    navigate("/");
   }
 
   async function handleDelete() {
@@ -227,7 +248,7 @@ export function ShowForm() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/shows/${id}/contrato`)}
+            onClick={scrollToContracts}
           >
             <FileText className="h-4 w-4" />
             Criar contrato
@@ -444,6 +465,7 @@ export function ShowForm() {
 
         {isEditing && id && (
           <div className="space-y-4">
+            <ShowContracts showId={id} />
             <ShowTasks showId={id} />
             <ShowTimeline showId={id} />
           </div>

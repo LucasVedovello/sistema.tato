@@ -66,7 +66,15 @@ export type ClientWithShowCount = Client & {
 };
 
 /** Tipo de evento na timeline do show. */
-export type ActivityKind = "created" | "status" | "note" | "message";
+export type ActivityKind =
+  | "created"
+  | "status"
+  | "note"
+  | "message"
+  /** Contrato emitido a partir de um dos modelos do Storage. */
+  | "contract"
+  /** Uma das partes assinou o contrato. */
+  | "signature";
 
 export type ShowActivity = {
   id: string;
@@ -109,6 +117,72 @@ export type MessageTemplate = {
   variables: Record<string, unknown> | null;
 };
 
+/**
+ * Ordem de assinatura de um contrato. O cliente assina primeiro, pelo link
+ * público; só então o campo do contratado é liberado dentro do app.
+ */
+export type ContractStatus =
+  | "aguardando_cliente"
+  | "aguardando_contratado"
+  | "assinado"
+  | "cancelado";
+
+export type ShowContract = {
+  id: string;
+  show_id: string;
+  template_key: "carnellos" | "producao";
+  template_label: string;
+  template_path: string;
+  /**
+   * Snapshot dos textos sobrepostos ao modelo na emissão — o que foi assinado
+   * não muda se o cadastro do show mudar depois.
+   */
+  overlay: unknown;
+  status: ContractStatus;
+  /** Segredo do link público de assinatura. */
+  public_token: string;
+  /**
+   * Segredo de leitura dos PDFs no Storage — separado do token de assinatura
+   * de propósito: o nome do arquivo aparece para quem lista o bucket, e o
+   * token de assinatura não pode vazar por aí.
+   */
+  storage_key: string;
+  client_name: string;
+  office_name: string;
+  /** PNG transparente em data URL. */
+  client_signature: string | null;
+  client_signed_at: string | null;
+  office_signature: string | null;
+  office_signed_at: string | null;
+  prepared_pdf_path: string;
+  signed_pdf_path: string | null;
+  created_by_email: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Recorte do contrato devolvido para quem abre o link público: só o suficiente
+ * para desenhar e assinar o documento, sem o show nem o cadastro do cliente.
+ */
+export type PublicContract = Pick<
+  ShowContract,
+  | "id"
+  | "status"
+  | "template_key"
+  | "template_label"
+  | "client_name"
+  | "office_name"
+  | "client_signature"
+  | "client_signed_at"
+  | "office_signature"
+  | "office_signed_at"
+> & {
+  artist_name: string;
+  event_date: string | null;
+  location: string | null;
+};
+
 /** Chaves de T cujo tipo aceita null. */
 type NullableKeys<T> = {
   [K in keyof T]-?: null extends T[K] ? K : never;
@@ -145,7 +219,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Omit<Show, "id" | "created_at">>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "shows_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       show_activities: {
         Row: ShowActivity;
@@ -154,7 +236,48 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Omit<ShowActivity, "id" | "created_at">>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "show_activities_show_id_fkey";
+            columns: ["show_id"];
+            isOneToOne: false;
+            referencedRelation: "shows";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      show_contracts: {
+        Row: ShowContract;
+        Insert: OptionalNullable<
+          Omit<
+            ShowContract,
+            | "id"
+            | "created_at"
+            | "updated_at"
+            | "overlay"
+            | "status"
+            | "public_token"
+            | "storage_key"
+          >
+        > & {
+          id?: string;
+          overlay?: unknown;
+          status?: ContractStatus;
+          public_token?: string;
+          storage_key?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ShowContract, "id" | "created_at">>;
+        Relationships: [
+          {
+            foreignKeyName: "show_contracts_show_id_fkey";
+            columns: ["show_id"];
+            isOneToOne: false;
+            referencedRelation: "shows";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       show_tasks: {
         Row: ShowTask;
@@ -163,13 +286,29 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Omit<ShowTask, "id" | "created_at">>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "show_tasks_show_id_fkey";
+            columns: ["show_id"];
+            isOneToOne: false;
+            referencedRelation: "shows";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       proposals: {
         Row: Proposal;
         Insert: OptionalNullable<Omit<Proposal, "id">> & { id?: string };
         Update: Partial<Omit<Proposal, "id">>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "proposals_show_id_fkey";
+            columns: ["show_id"];
+            isOneToOne: false;
+            referencedRelation: "shows";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       message_templates: {
         Row: MessageTemplate;
@@ -179,7 +318,22 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      /** Leitura pública do contrato pelo token do link (security definer). */
+      public_get_contract: {
+        Args: { p_token: string };
+        Returns: PublicContract | null;
+      };
+      /** Grava a assinatura do cliente e libera o campo do contratado. */
+      public_sign_contract: {
+        Args: { p_token: string; p_signature: string };
+        Returns: {
+          id: string;
+          status: ContractStatus;
+          client_signed_at: string;
+        } | null;
+      };
+    };
     Enums: {
       show_status: ShowStatus;
     };

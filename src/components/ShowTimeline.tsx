@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   ArrowRight,
+  FileSignature,
   MessageSquare,
+  PenLine,
   Plus,
   Send,
   Sparkles,
@@ -29,6 +31,8 @@ const ICONES: Record<ActivityKind, typeof StickyNote> = {
   status: ArrowRight,
   note: StickyNote,
   message: MessageSquare,
+  contract: FileSignature,
+  signature: PenLine,
 };
 
 /** Cor do marcador de cada tipo de evento. */
@@ -37,6 +41,10 @@ const CORES: Record<ActivityKind, string> = {
   status: "bg-primary/10 text-primary",
   note: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   message: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  contract:
+    "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  signature:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
 };
 
 function StatusPill({ status }: { status: keyof typeof STATUS_STYLES }) {
@@ -98,6 +106,12 @@ function ActivityRow({ activity }: { activity: ShowActivity }) {
           )}
           {activity.kind === "message" && (
             <span className="font-medium">Mensagem enviada</span>
+          )}
+          {activity.kind === "contract" && (
+            <span className="font-medium">Contrato gerado</span>
+          )}
+          {activity.kind === "signature" && (
+            <span className="font-medium">Assinatura</span>
           )}
         </div>
 
