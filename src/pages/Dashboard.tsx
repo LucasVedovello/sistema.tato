@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { TasksSummary } from "@/components/TasksSummary";
+import { exportAllShowsToExcel } from "@/lib/shows-export";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -16,7 +17,12 @@ export function Dashboard() {
             Arraste os cards entre as colunas para mudar o status.
           </p>
         </div>
-        <ExportExcelButton />
+        {/* O Kanban mostra os shows de todos os status — a planilha traz os
+            mesmos, não só os fechados (esses têm a tela "Fechados"). */}
+        <ExportExcelButton
+          onExport={exportAllShowsToExcel}
+          emptyMessage="Nenhum show cadastrado ainda."
+        />
       </div>
 
       <TasksSummary />

@@ -97,6 +97,33 @@ Fluxo, na ficha do show (`/shows/:id`), card **Contratos**:
 A ordem é garantida pelo banco (trigger `enforce_contract_signature_order`),
 não só pela interface.
 
+### Status do show, automático
+
+O status acompanha o contrato sozinho — as transições ficam registradas na
+timeline com o selo "automático" e o motivo:
+
+| De | Para | Quando |
+| --- | --- | --- |
+| Criado | Em fechamento | o contrato é gerado |
+| Em fechamento | Fechado | as duas partes assinam |
+| Em fechamento | Cancelado | o prazo de assinatura expira |
+
+O prazo é `show_contracts.deadline_at`, **um dia** a partir da emissão (o
+default da coluna; mudar o prazo é mudar esse default). Quem faz a checagem é
+`expire_overdue_contracts()`, chamada de dois lugares:
+
+- um agendamento do **pg_cron**, de hora em hora (`cron.job`
+  `expirar-contratos-vencidos`), para valer com o sistema fechado;
+- o próprio app, ao carregar (`src/lib/contract-expiry.ts`), para a tela não
+  mostrar por até uma hora um contrato vencido como se ainda valesse.
+
+A função é idempotente: se nada venceu, não escreve nada. Um show em fechamento
+**sem contrato nenhum** não tem prazo correndo e não é cancelado, e um show com
+outro contrato ainda dentro do prazo também não.
+
+Mudanças manuais de status têm a palavra final: a automação só age quando o
+show está no status que ela espera.
+
 ### Onde ficam os segredos
 
 Cada contrato tem **dois** segredos distintos: `public_token` (o link de
@@ -121,6 +148,25 @@ npx supabase functions deploy contrato-pdf --project-ref iwqshcdqgwhglqknuxhn --
 
 > `--no-verify-jwt` é proposital: quem chama é o cliente que vai assinar, sem
 > sessão no sistema. A autorização é o token do contrato.
+
+## Exportação para Excel
+
+Todas as telas de listagem têm o botão **Exportar para Excel**, sempre com o
+mesmo componente (`ExportExcelButton`) e a mesma lib (`write-excel-file` — o
+pacote `xlsx` do npm tem CVEs):
+
+| Tela | O que sai |
+| --- | --- |
+| Dashboard | todos os shows (é o que o Kanban mostra) |
+| Fechados | só os shows fechados |
+| Calendário | os shows do intervalo desenhado na grade |
+| Clientes | cadastro + quantos shows cada cliente tem |
+| Relatórios | indicadores, funil por status e conversão do período |
+
+Cada exportação **consulta o banco no clique**, em vez de reaproveitar o que a
+tela carregou, para o arquivo nunca sair desatualizado. Os números do relatório
+saem de `src/lib/report.ts`, o mesmo módulo que a tela usa — planilha e tela não
+podem divergir.
 
 ## Build
 

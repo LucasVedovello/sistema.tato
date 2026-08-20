@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Clock, Download, Loader2, Music4, PenLine } from "lucide-react";
+import {
+  AlarmClock,
+  CheckCircle2,
+  Clock,
+  Download,
+  Loader2,
+  Music4,
+  PenLine,
+} from "lucide-react";
 
 import {
   ContractPdfView,
@@ -10,7 +18,7 @@ import { SignatureDialog } from "@/components/SignatureDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { signatureField } from "@/lib/contract-templates";
-import { publicContractPdfUrl } from "@/lib/contracts";
+import { deadlineInfo, publicContractPdfUrl } from "@/lib/contracts";
 import { supabase } from "@/lib/supabase";
 import { formatDate } from "@/lib/utils";
 import type { PublicContract } from "@/types/database";
@@ -170,7 +178,8 @@ export function PublicSign() {
           icon={<Clock className="h-12 w-12 text-muted-foreground" />}
           title="Link inválido"
         >
-          Este link não existe ou foi cancelado. Peça um novo ao escritório.
+          Este link não existe mais: ou o contrato foi cancelado, ou o prazo de
+          assinatura expirou. Peça um novo ao escritório.
         </Aviso>
       </div>
     );
@@ -223,6 +232,12 @@ export function PublicSign() {
             {contract.event_date ? ` em ${formatDate(contract.event_date)}` : ""}
             {contract.location ? ` · ${contract.location}` : ""}. Role o
             documento até o fim e assine no campo destacado.
+          </p>
+          {/* O prazo é o mesmo que corre no banco: passou dele sem as duas
+              assinaturas, o contrato é cancelado. */}
+          <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-amber-700 dark:text-amber-300">
+            <AlarmClock className="h-4 w-4" />
+            Assine até {deadlineInfo(contract).texto}.
           </p>
         </div>
 

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Mail, Pencil, Phone, Plus, Search, Trash2, Users } from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { exportClientsToExcel } from "@/lib/clients-export";
 import { supabase } from "@/lib/supabase";
 import type { Client, ClientWithShowCount } from "@/types/database";
 
@@ -80,10 +82,16 @@ export function Clients() {
             {clients.length} cliente(s) cadastrado(s).
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="h-4 w-4" />
-          Novo cliente
-        </Button>
+        <div className="flex items-start gap-2">
+          <ExportExcelButton
+            onExport={exportClientsToExcel}
+            emptyMessage="Nenhum cliente cadastrado ainda."
+          />
+          <Button onClick={openNew}>
+            <Plus className="h-4 w-4" />
+            Novo cliente
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">

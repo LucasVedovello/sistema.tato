@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  AlarmClock,
   ArrowLeft,
   Check,
   CheckCircle2,
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { signatureField } from "@/lib/contract-templates";
 import {
   contractFileUrl,
+  deadlineInfo,
   downloadContractFile,
   publicSignUrl,
   signAsOffice,
@@ -164,6 +166,7 @@ export function ContractDetail() {
 
   const meta = STATUS_META[contract.status];
   const link = publicSignUrl(contract.public_token);
+  const prazo = deadlineInfo(contract);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -251,6 +254,19 @@ export function ContractDetail() {
                 </>
               )}
             </p>
+            {prazo.relevante && (
+              <p
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium",
+                  prazo.vencido ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                <AlarmClock className="h-4 w-4" />
+                {prazo.vencido
+                  ? `Prazo vencido em ${prazo.texto} — o show será cancelado na próxima verificação`
+                  : `Prazo para as duas assinaturas: ${prazo.texto}`}
+              </p>
+            )}
             <p className="flex items-center gap-2 text-sm font-medium">
               {contract.office_signed_at ? (
                 <>

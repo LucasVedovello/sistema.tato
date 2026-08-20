@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AlarmClock,
   Check,
   Copy,
   Download,
@@ -14,6 +15,8 @@ import { ContractDialog } from "@/components/ContractDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  deadlineInfo,
+  deleteContract,
   downloadContractFile,
   publicSignUrl,
   STATUS_META,
@@ -108,12 +111,12 @@ export function ShowContracts({ showId }: { showId: string }) {
     ) {
       return;
     }
-    const { error } = await supabase
-      .from("show_contracts")
-      .delete()
-      .eq("id", contract.id);
-    if (error) {
-      setError(error.message);
+    try {
+      await deleteContract(contract);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Falha ao excluir o contrato."
+      );
       return;
     }
     void load();
@@ -150,6 +153,7 @@ export function ShowContracts({ showId }: { showId: string }) {
           <ul className="space-y-3">
             {contracts.map((contract) => {
               const meta = STATUS_META[contract.status];
+              const prazo = deadlineInfo(contract);
               return (
                 <li
                   key={contract.id}
@@ -175,6 +179,22 @@ export function ShowContracts({ showId }: { showId: string }) {
                       ? ` · ${contract.created_by_email}`
                       : ""}
                   </p>
+
+                  {prazo.relevante && (
+                    <p
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs",
+                        prazo.vencido
+                          ? "font-medium text-destructive"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      <AlarmClock className="h-3.5 w-3.5" />
+                      {prazo.vencido
+                        ? `Prazo vencido em ${prazo.texto} — o show será cancelado`
+                        : `Assinar até ${prazo.texto}`}
+                    </p>
+                  )}
 
                   <div className="flex flex-wrap gap-1.5">
                     <Button asChild size="sm" variant="outline">

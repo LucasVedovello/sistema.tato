@@ -63,6 +63,11 @@ function StatusPill({ status }: { status: keyof typeof STATUS_STYLES }) {
 
 function ActivityRow({ activity }: { activity: ShowActivity }) {
   const Icone = ICONES[activity.kind];
+  /**
+   * Mudança de status sem autor foi feita pela automação do contrato — quem
+   * clica sempre fica registrado. O motivo vem no `content`.
+   */
+  const automatico = activity.kind === "status" && !activity.author_email;
 
   return (
     <li className="group relative flex gap-3 pb-5 last:pb-0">
@@ -92,12 +97,19 @@ function ActivityRow({ activity }: { activity: ShowActivity }) {
 
           {activity.kind === "status" && (
             <>
-              <span className="font-medium">Status alterado</span>
+              <span className="font-medium">
+                {automatico ? "Status alterado automaticamente" : "Status alterado"}
+              </span>
               {activity.from_status && (
                 <StatusPill status={activity.from_status} />
               )}
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
               {activity.to_status && <StatusPill status={activity.to_status} />}
+              {automatico && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                  automático
+                </span>
+              )}
             </>
           )}
 

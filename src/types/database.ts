@@ -156,6 +156,11 @@ export type ShowContract = {
   office_signed_at: string | null;
   prepared_pdf_path: string;
   signed_pdf_path: string | null;
+  /**
+   * Limite para as duas assinaturas, contado da emissão. Vencido sem ambas, o
+   * contrato é cancelado e o show vai para "cancelado".
+   */
+  deadline_at: string;
   created_by_email: string | null;
   created_at: string;
   updated_at: string;
@@ -177,6 +182,7 @@ export type PublicContract = Pick<
   | "client_signed_at"
   | "office_signature"
   | "office_signed_at"
+  | "deadline_at"
 > & {
   artist_name: string;
   event_date: string | null;
@@ -258,9 +264,11 @@ export interface Database {
             | "status"
             | "public_token"
             | "storage_key"
+            | "deadline_at"
           >
         > & {
           id?: string;
+          deadline_at?: string;
           overlay?: unknown;
           status?: ContractStatus;
           public_token?: string;
@@ -323,6 +331,14 @@ export interface Database {
       public_get_contract: {
         Args: { p_token: string };
         Returns: PublicContract | null;
+      };
+      /**
+       * Cancela contratos com prazo vencido (e os shows que ficaram sem
+       * contrato vivo). Idempotente; devolve quantos venceram agora.
+       */
+      expire_overdue_contracts: {
+        Args: Record<string, never>;
+        Returns: number;
       };
       /** Grava a assinatura do cliente e libera o campo do contratado. */
       public_sign_contract: {

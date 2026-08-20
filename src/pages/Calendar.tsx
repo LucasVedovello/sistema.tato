@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -11,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { exportCalendarShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
 import { CALENDAR_STATUS_PRIORITY, STATUS_STYLES } from "@/lib/status";
 import { cn, formatCurrency, formatDate, toDateOnly } from "@/lib/utils";
@@ -51,12 +53,17 @@ export function Calendar() {
     });
   }, [cursor]);
 
+  /** Intervalo que a grade cobre — a busca e a exportação usam o mesmo. */
+  const periodo = useMemo(
+    () => ({ from: toDateOnly(days[0]), to: toDateOnly(days[days.length - 1]) }),
+    [days]
+  );
+
   // Busca apenas os shows do intervalo visível, não a agenda inteira.
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const from = toDateOnly(days[0]);
-    const to = toDateOnly(days[days.length - 1]);
+    const { from, to } = periodo;
 
     (async () => {
       const { data, error } = await supabase
@@ -78,7 +85,7 @@ export function Calendar() {
     return () => {
       active = false;
     };
-  }, [days]);
+  }, [periodo]);
 
   /**
    * Shows agrupados por data (AAAA-MM-DD).
@@ -163,6 +170,18 @@ export function Calendar() {
           >
             Hoje
           </Button>
+          {/* Exporta o mesmo intervalo que a grade desenha (as seis semanas),
+              e não só os dias do mês — é o que está à vista. */}
+          <ExportExcelButton
+            onExport={() =>
+              exportCalendarShowsToExcel(
+                periodo.from,
+                periodo.to,
+                `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`
+              )
+            }
+            emptyMessage="Nenhum show no período exibido."
+          />
         </div>
       </div>
 

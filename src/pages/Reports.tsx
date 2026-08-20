@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, TrendingUp, XCircle } from "lucide-react";
 
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -9,20 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  calcularRelatorio,
+  ETAPAS_FUNIL,
+  MESES,
+  TODOS_OS_MESES,
+  type LinhaShow,
+} from "@/lib/report";
+import { exportReportToExcel } from "@/lib/report-export";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
 import { cn, formatCurrency, parseDateOnly } from "@/lib/utils";
 import type { ShowStatus } from "@/types/database";
-
-/**
- * Etapas do funil, na ordem da negociação.
- *
- * "cancelado" fica FORA de propósito: não é uma etapa que o show percorre, é
- * uma perda — e mostrá-lo como barra ao lado de "fechado" também juntava o
- * verde e o vermelho, o par que daltônicos (deuteranopia) menos distinguem.
- * Ele aparece à parte, com rótulo próprio.
- */
-const ETAPAS_FUNIL: ShowStatus[] = ["criado", "em_fechamento", "fechado"];
 
 /** Cor da barra de cada etapa — a mesma usada no Kanban e no calendário. */
 const BARRA: Record<ShowStatus, string> = {
@@ -31,20 +30,6 @@ const BARRA: Record<ShowStatus, string> = {
   fechado: "bg-emerald-500",
   cancelado: "bg-rose-500",
 };
-
-const MESES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
-
-type LinhaShow = {
-  id: string;
-  status: ShowStatus;
-  value_cents: number | null;
-  event_date: string | null;
-};
-
-const TODOS_OS_MESES = "todos";
 
 /** Número grande, sem gráfico: é uma manchete, não uma série. */
 function StatTile({
@@ -107,60 +92,27 @@ export function Reports() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shows]);
 
-  const semData = useMemo(
-    () => shows.filter((s) => !s.event_date).length,
-    [shows]
-  );
-
-  /** Shows do ano selecionado e, separadamente, do mês selecionado. */
-  const { doAno, doMes } = useMemo(() => {
-    const anoNum = Number(ano);
-    const doAno = shows.filter((s) => {
-      if (!s.event_date) return false;
-      return parseDateOnly(s.event_date).getFullYear() === anoNum;
-    });
-    const doMes =
-      mes === TODOS_OS_MESES
-        ? doAno
-        : doAno.filter(
-            (s) => parseDateOnly(s.event_date!).getMonth() === Number(mes)
-          );
-    return { doAno, doMes };
-  }, [shows, ano, mes]);
-
-  function somaFechados(lista: LinhaShow[]) {
-    return lista
-      .filter((s) => s.status === "fechado")
-      .reduce((total, s) => total + (s.value_cents ?? 0), 0);
-  }
-
-  const fechadosNoMes = doMes.filter((s) => s.status === "fechado").length;
-  const fechadosNoAno = doAno.filter((s) => s.status === "fechado").length;
-
-  /** Contagem por status dentro do período selecionado (mês ou ano inteiro). */
-  const porStatus = useMemo(() => {
-    const base: Record<ShowStatus, number> = {
-      criado: 0,
-      em_fechamento: 0,
-      fechado: 0,
-      cancelado: 0,
-    };
-    for (const show of doMes) base[show.status] += 1;
-    return base;
-  }, [doMes]);
+  /**
+   * Números do período. A conta mora em `lib/report.ts` porque a exportação
+   * para Excel usa exatamente a mesma — planilha e tela não podem divergir.
+   */
+  const {
+    porStatus,
+    valorPorStatus,
+    totalPeriodo,
+    fechadosNoMes,
+    fechadosNoAno,
+    somaMes,
+    somaAno,
+    conversao,
+    semData,
+    rotuloPeriodo,
+  } = useMemo(() => calcularRelatorio(shows, ano, mes), [shows, ano, mes]);
 
   const maiorEtapa = Math.max(
     1,
     ...ETAPAS_FUNIL.map((status) => porStatus[status])
   );
-
-  // Taxa de conversão: fechados sobre tudo que entrou no período.
-  const totalPeriodo = doMes.length;
-  const conversao =
-    totalPeriodo === 0 ? null : (porStatus.fechado / totalPeriodo) * 100;
-
-  const rotuloPeriodo =
-    mes === TODOS_OS_MESES ? `${ano}` : `${MESES[Number(mes)]} de ${ano}`;
 
   if (loading) {
     return <p className="text-muted-foreground">Carregando relatórios…</p>;
@@ -207,6 +159,12 @@ export function Reports() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Exporta o período selecionado, com os mesmos números da tela. */}
+          <ExportExcelButton
+            onExport={() => exportReportToExcel(ano, mes)}
+            emptyMessage="Nenhum show no período — a planilha saiu com os totais zerados."
+          />
         </div>
       </div>
 
@@ -223,12 +181,12 @@ export function Reports() {
               ? `Fechado em ${ano}`
               : `Fechado em ${MESES[Number(mes)]}`
           }
-          value={formatCurrency(somaFechados(doMes))}
+          value={formatCurrency(somaMes)}
           hint={`${fechadosNoMes} show(s) fechado(s)`}
         />
         <StatTile
           label={`Fechado no ano de ${ano}`}
-          value={formatCurrency(somaFechados(doAno))}
+          value={formatCurrency(somaAno)}
           hint={`${fechadosNoAno} show(s) fechado(s)`}
         />
         <StatTile
@@ -271,11 +229,7 @@ export function Reports() {
                         </span>
                         <span className="tabular-nums text-muted-foreground">
                           {quantidade} show(s) ·{" "}
-                          {formatCurrency(
-                            doMes
-                              .filter((s) => s.status === status)
-                              .reduce((t, s) => t + (s.value_cents ?? 0), 0)
-                          )}
+                          {formatCurrency(valorPorStatus[status])}
                         </span>
                       </div>
                       <div className="h-3 w-full rounded-sm bg-muted">

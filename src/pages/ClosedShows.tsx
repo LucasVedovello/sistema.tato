@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Card } from "@/components/ui/card";
+import { exportClosedShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { ShowWithClient } from "@/types/database";
@@ -50,7 +51,11 @@ export function ClosedShows() {
             {shows.length} show(s) · Total {formatCurrency(total)}
           </p>
         </div>
-        <ExportExcelButton variant="default" />
+        <ExportExcelButton
+          variant="default"
+          onExport={exportClosedShowsToExcel}
+          emptyMessage="Nenhum show fechado — a planilha saiu só com o cabeçalho."
+        />
       </div>
 
       {error && (

@@ -110,6 +110,39 @@ export const publicContractPdfUrl = (
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/contrato-pdf` +
   `?token=${encodeURIComponent(token)}&tipo=${tipo}`;
 
+const PRAZO_FORMAT = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/**
+ * Como mostrar o prazo de assinatura de um contrato.
+ *
+ * Vencido não é um estado que a tela invente: quem vira a chave é
+ * `expire_overdue_contracts`, no banco. Aqui é só a leitura — um contrato
+ * pendente com data no passado está esperando a próxima rodada.
+ */
+export function deadlineInfo(contract: {
+  status: ContractStatus;
+  deadline_at: string;
+}): { texto: string; vencido: boolean; relevante: boolean } {
+  const prazo = new Date(contract.deadline_at);
+  const vencido = prazo.getTime() < Date.now();
+  const pendente =
+    contract.status === "aguardando_cliente" ||
+    contract.status === "aguardando_contratado";
+
+  return {
+    texto: PRAZO_FORMAT.format(prazo),
+    vencido: pendente && vencido,
+    // Depois de assinado ou cancelado o prazo não diz mais nada.
+    relevante: pendente,
+  };
+}
+
 /** Campos que o modelo pede e o cadastro do show não tem. */
 export interface ContractExtras {
   clientAddress: string;
@@ -258,6 +291,34 @@ export async function signAsOffice(
 
   if (error) throw new Error(error.message);
   return data as ShowContract;
+}
+
+/**
+ * Exclui o contrato e os PDFs dele.
+ *
+ * Os arquivos saem primeiro: uma linha sem arquivo apareceria na ficha como um
+ * contrato que não abre, enquanto um arquivo sem linha é só lixo — e o Storage
+ * não tem cascade a partir do banco.
+ */
+export async function deleteContract(contract: ShowContract): Promise<void> {
+  const caminhos = [
+    contract.prepared_pdf_path,
+    contract.signed_pdf_path,
+  ].filter((path): path is string => Boolean(path));
+
+  if (caminhos.length > 0) {
+    const { error } = await supabase.storage
+      .from(CONTRACT_BUCKET)
+      .remove(caminhos);
+    // Falhar aqui não pode impedir a exclusão: o registro é o que importa.
+    if (error) console.error("[contracts] falha ao remover PDFs", error);
+  }
+
+  const { error } = await supabase
+    .from("show_contracts")
+    .delete()
+    .eq("id", contract.id);
+  if (error) throw new Error(error.message);
 }
 
 /** Baixa um PDF do contrato com nome legível. */

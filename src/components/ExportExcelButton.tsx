@@ -2,16 +2,27 @@ import { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { exportClosedShowsToExcel } from "@/lib/shows-export";
 
 /**
- * Baixa a planilha dos shows fechados. Os dados são buscados no banco no
- * momento do clique, então o arquivo nunca sai desatualizado.
+ * Botão de exportação para Excel, igual em todas as telas.
+ *
+ * Cada tela passa a sua função de exportação; ela busca os dados no banco no
+ * momento do clique — nunca reaproveita o que a tela já tinha carregado — e
+ * devolve quantos registros entraram, para o botão avisar quando o arquivo
+ * saiu vazio.
  */
 export function ExportExcelButton({
+  onExport,
+  emptyMessage = "Nada para exportar — a planilha saiu só com o cabeçalho.",
+  label = "Exportar para Excel",
   variant = "outline",
+  disabled = false,
 }: {
+  onExport: () => Promise<number>;
+  emptyMessage?: string;
+  label?: string;
   variant?: "default" | "outline";
+  disabled?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +33,7 @@ export function ExportExcelButton({
     setError(null);
     setEmpty(false);
     try {
-      const total = await exportClosedShowsToExcel();
+      const total = await onExport();
       if (total === 0) setEmpty(true);
     } catch (err) {
       setError(
@@ -35,15 +46,11 @@ export function ExportExcelButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button variant={variant} onClick={handleClick} disabled={busy}>
+      <Button variant={variant} onClick={handleClick} disabled={busy || disabled}>
         <FileSpreadsheet className="h-4 w-4" />
-        {busy ? "Gerando…" : "Exportar para Excel"}
+        {busy ? "Gerando…" : label}
       </Button>
-      {empty && (
-        <p className="text-xs text-muted-foreground">
-          Nenhum show fechado — a planilha saiu só com o cabeçalho.
-        </p>
-      )}
+      {empty && <p className="text-xs text-muted-foreground">{emptyMessage}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

@@ -1,8 +1,8 @@
 import type { Column } from "write-excel-file/browser";
 
+import { CABECALHO, MOEDA, hojeSufixo, salvarPlanilha, toUtcDate } from "@/lib/excel";
 import { supabase } from "@/lib/supabase";
 import { SHOW_STATUS_LABELS, type ShowWithClient } from "@/types/database";
-import { parseDateOnly, toDateOnly } from "@/lib/utils";
 
 /**
  * Uma linha da planilha. Os nomes aqui são só de transporte; os rótulos que o
@@ -17,8 +17,6 @@ interface ExportRow {
   location: string;
   status: string;
 }
-
-const CABECALHO = { fontWeight: "bold" } as const;
 
 /**
  * Colunas da planilha, na ordem em que aparecem.
@@ -50,9 +48,7 @@ const COLUNAS: Column<ExportRow>[] = [
     header: { value: "Valor", ...CABECALHO },
     // Continua numérica (dá para somar no Excel); o R$ é só formatação.
     cell: (row) =>
-      row.value == null
-        ? null
-        : { type: Number, value: row.value, format: '"R$" #,##0.00' },
+      row.value == null ? null : { type: Number, value: row.value, format: MOEDA },
     width: 16,
   },
   {
@@ -72,23 +68,9 @@ const COLUNAS: Column<ExportRow>[] = [
   },
 ];
 
-/** "2026-09-12" -> Date no mesmo dia, mas ancorado em UTC. */
-function toUtcDate(isoDate: string): Date {
-  const local = parseDateOnly(isoDate);
-  return new Date(
-    Date.UTC(local.getFullYear(), local.getMonth(), local.getDate())
-  );
-}
-
 function toRow(show: ShowWithClient): ExportRow {
   return {
     artist: show.artist_name,
-    /**
-     * Data em UTC de propósito: o xlsx guarda data como número serial e a
-     * conversão parte dos componentes UTC. Passar meia-noite local faria a
-     * data voltar um dia no Brasil (UTC-3) — o mesmo problema que já apareceu
-     * na exibição das datas na tela.
-     */
     eventDate: show.event_date ? toUtcDate(show.event_date) : null,
     client: show.clients?.name ?? "",
     value: show.value_cents == null ? null : show.value_cents / 100,
@@ -99,33 +81,66 @@ function toRow(show: ShowWithClient): ExportRow {
 }
 
 /**
- * Busca os shows fechados no banco AGORA e baixa a planilha.
- * Devolve quantas linhas foram exportadas.
+ * Consulta base dos shows, sempre com o cliente relacionado.
  *
- * A consulta é feita aqui dentro, e não reaproveita o que a tela já carregou,
- * para o arquivo refletir sempre o estado atual do banco.
+ * Todas as exportações leem o banco no momento do clique, em vez de
+ * reaproveitar o que a tela já carregou, para o arquivo refletir o estado
+ * atual — inclusive as mudanças automáticas de status.
  */
-export async function exportClosedShowsToExcel(): Promise<number> {
-  const { data, error } = await supabase
-    .from("shows")
-    .select("*, clients(id, name)")
-    .eq("status", "fechado")
-    .order("event_date", { ascending: true, nullsFirst: false });
+const consultaShows = () => supabase.from("shows").select("*, clients(id, name)");
 
+/** Planilha com TODOS os shows — é o que o Dashboard mostra no Kanban. */
+export async function exportAllShowsToExcel(): Promise<number> {
+  const { data, error } = await consultaShows().order("event_date", {
+    ascending: true,
+    nullsFirst: false,
+  });
   if (error) throw new Error(error.message);
 
-  const rows = ((data as ShowWithClient[]) ?? []).map(toRow);
+  return salvarPlanilha(
+    ((data as ShowWithClient[]) ?? []).map(toRow),
+    COLUNAS,
+    "Shows",
+    `shows-${hojeSufixo()}.xlsx`
+  );
+}
 
-  // O pacote não tem export raiz: é preciso apontar para o entrypoint
-  // /browser (existem também /node e /universal). Import dinâmico para ficar
-  // fora do bundle inicial.
-  const writeXlsxFile = (await import("write-excel-file/browser")).default;
+/** Planilha só dos shows fechados. */
+export async function exportClosedShowsToExcel(): Promise<number> {
+  const { data, error } = await consultaShows()
+    .eq("status", "fechado")
+    .order("event_date", { ascending: true, nullsFirst: false });
+  if (error) throw new Error(error.message);
 
-  await writeXlsxFile(rows, {
-    columns: COLUNAS,
-    sheet: "Shows fechados",
-    stickyRowsCount: 1,
-  }).toFile(`shows-fechados-${toDateOnly(new Date())}.xlsx`);
+  return salvarPlanilha(
+    ((data as ShowWithClient[]) ?? []).map(toRow),
+    COLUNAS,
+    "Shows fechados",
+    `shows-fechados-${hojeSufixo()}.xlsx`
+  );
+}
 
-  return rows.length;
+/**
+ * Planilha dos shows do intervalo visível no calendário.
+ *
+ * O intervalo é o mesmo que a tela usa para desenhar a grade (as seis semanas,
+ * não só os dias do mês), então a planilha traz exatamente o que está à vista.
+ */
+export async function exportCalendarShowsToExcel(
+  from: string,
+  to: string,
+  rotuloPeriodo: string
+): Promise<number> {
+  const { data, error } = await consultaShows()
+    .gte("event_date", from)
+    .lte("event_date", to)
+    .order("event_date", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  return salvarPlanilha(
+    ((data as ShowWithClient[]) ?? []).map(toRow),
+    COLUNAS,
+    "Agenda",
+    `agenda-${rotuloPeriodo}.xlsx`
+  );
 }
