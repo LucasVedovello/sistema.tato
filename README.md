@@ -1,4 +1,4 @@
-# Sistema Tato
+# Backstage CV
 
 CRM para **gestão de shows e eventos musicais**: cadastro de shows, acompanhamento por status (criado → em fechamento → fechado / cancelado), clientes, propostas e templates de mensagem.
 

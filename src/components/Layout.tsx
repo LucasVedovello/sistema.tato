@@ -40,7 +40,7 @@ export function Layout() {
         <div className="container flex h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-semibold">
             <Music4 className="h-5 w-5 text-primary" />
-            <span>Sistema Tato</span>
+            <span>Backstage CV</span>
           </div>
 
           <nav className="flex items-center gap-1">

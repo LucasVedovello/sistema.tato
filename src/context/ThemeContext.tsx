@@ -19,6 +19,13 @@ export type ResolvedTheme = "light" | "dark";
  * tema antes do React montar (evita o flash de tela clara). Se mudar aqui,
  * mude lá também.
  */
+/**
+ * Chave do tema no localStorage.
+ *
+ * Conserva o nome antigo do sistema ("sistema-tato") de propósito: renomeá-la
+ * faria todo mundo perder a preferência já salva e voltar ao tema padrão. O
+ * script anti-flash do index.html lê exatamente esta chave.
+ */
 export const THEME_STORAGE_KEY = "sistema-tato-theme";
 
 interface ThemeContextValue {

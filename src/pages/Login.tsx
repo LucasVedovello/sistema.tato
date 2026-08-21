@@ -51,7 +51,7 @@ export function Login() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Music4 className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-xl">Sistema Tato</CardTitle>
+          <CardTitle className="text-xl">Backstage CV</CardTitle>
           <CardDescription>
             Entre para gerenciar seus shows e propostas.
           </CardDescription>
