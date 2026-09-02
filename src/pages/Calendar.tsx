@@ -272,22 +272,24 @@ export function Calendar() {
                             className="block truncate text-[11px] leading-tight"
                             title={[
                               show.artist_name,
-                              hora,
                               show.location ?? "",
+                              hora,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
                           >
+                            {/* Artista em destaque; local e horário seguem
+                                juntos, no mesmo tom mais leve. */}
                             <span className="font-medium">
                               {show.artist_name}
                             </span>
-                            {hora && <span className="opacity-80"> · {hora}</span>}
                             {show.location && (
                               <span className="opacity-80">
                                 {" "}
                                 · {show.location}
                               </span>
                             )}
+                            {hora && <span className="opacity-80"> · {hora}</span>}
                           </span>
                         );
                       })}

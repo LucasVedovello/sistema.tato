@@ -3,7 +3,7 @@ import type { Column } from "write-excel-file/browser";
 import { CABECALHO, MOEDA, hojeSufixo, salvarPlanilha, toUtcDate } from "@/lib/excel";
 import { productionSummary } from "@/lib/production";
 import { supabase } from "@/lib/supabase";
-import { formatTime, toDateOnly } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
 import { SHOW_STATUS_LABELS, type ShowWithClient } from "@/types/database";
 
 /**
@@ -129,27 +129,6 @@ export async function exportClosedShowsToExcel(): Promise<number> {
     COLUNAS,
     "Shows fechados",
     `shows-fechados-${hojeSufixo()}.xlsx`
-  );
-}
-
-/**
- * Planilha dos shows já realizados — a aba "Realizados" do dashboard.
- *
- * O recorte é o mesmo da tela: data do evento anterior a hoje e cancelados de
- * fora (a data passou, mas o show não aconteceu).
- */
-export async function exportRealizedShowsToExcel(): Promise<number> {
-  const { data, error } = await consultaShows()
-    .lt("event_date", toDateOnly(new Date()))
-    .neq("status", "cancelado")
-    .order("event_date", { ascending: false });
-  if (error) throw new Error(error.message);
-
-  return salvarPlanilha(
-    ((data as ShowWithClient[]) ?? []).map(toRow),
-    COLUNAS,
-    "Realizados",
-    `shows-realizados-${hojeSufixo()}.xlsx`
   );
 }
 

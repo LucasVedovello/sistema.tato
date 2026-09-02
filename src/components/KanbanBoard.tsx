@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -23,8 +23,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { jaRealizado } from "@/lib/shows";
 import { supabase } from "@/lib/supabase";
-import { STATUS_STYLES } from "@/lib/status";
+import {
+  COLUNAS_ARRASTAVEIS,
+  COLUNAS_KANBAN,
+  COLUNA_REALIZADOS,
+  COLUNA_STYLES,
+  STATUS_STYLES,
+  type ColunaKanban,
+} from "@/lib/status";
 import { useIsMobile } from "@/lib/use-media-query";
 import { cn, formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import {
@@ -34,38 +42,64 @@ import {
   type ShowWithClient,
 } from "@/types/database";
 
-/** Conteúdo visual do card. Compartilhado entre a coluna e o DragOverlay. */
-function ShowCardBody({ show }: { show: ShowWithClient }) {
+/**
+ * Conteúdo visual do card. Compartilhado entre a coluna e o DragOverlay.
+ *
+ * `mostrarStatus` liga o selo de status: na coluna de realizados a posição do
+ * card não diz mais em que pé o show ficou, então o selo passa a ser a única
+ * pista — nas colunas de status ele seria redundante.
+ */
+function ShowCardBody({
+  show,
+  mostrarStatus = false,
+  arrastavel = true,
+}: {
+  show: ShowWithClient;
+  mostrarStatus?: boolean;
+  /** Desliga a alça de arrasto nos cards que não se arrastam. */
+  arrastavel?: boolean;
+}) {
   const hora = formatTime(show.event_time);
 
   return (
     <>
       <div className="flex items-start justify-between gap-2">
         <p className="font-semibold leading-tight">{show.artist_name}</p>
-        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        {arrastavel && (
+          <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        )}
       </div>
       {show.clients?.name && (
         <p className="mt-0.5 text-xs text-muted-foreground">
           {show.clients.name}
         </p>
       )}
+      {mostrarStatus && (
+        <span
+          className={cn(
+            "mt-2 inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
+            STATUS_STYLES[show.status].badge
+          )}
+        >
+          {STATUS_STYLES[show.status].label}
+        </span>
+      )}
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <CalendarDays className="h-3.5 w-3.5" />
           {formatDate(show.event_date)}
         </div>
-        {/* Horário logo abaixo da data: é a informação que decide o resto do
-            dia de quem produz o show. */}
-        {hora && (
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            {hora}
-          </div>
-        )}
         {show.location && (
           <div className="flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5" />
             <span className="truncate">{show.location}</span>
+          </div>
+        )}
+        {/* Horário fecha o bloco de data e local, no mesmo padrão de ícone. */}
+        {hora && (
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {hora}
           </div>
         )}
       </div>
@@ -79,20 +113,26 @@ function ShowCardBody({ show }: { show: ShowWithClient }) {
 /**
  * Card na versão do celular: sem arrasto (só uma coluna fica visível por vez),
  * com um seletor para mover o show de status.
+ *
+ * O seletor continua aparecendo na aba de realizados: o status do show já
+ * realizado ainda importa (é o que o relatório soma como fechado), e é por ele
+ * que se cancela um show a partir do quadro.
  */
 function TouchShowCard({
   show,
+  coluna,
   onOpen,
   onMove,
 }: {
   show: ShowWithClient;
+  coluna: ColunaKanban;
   onOpen: (id: string) => void;
   onMove: (show: ShowWithClient, status: ShowStatus) => void;
 }) {
   return (
     <Card
       data-testid={`card-${show.id}`}
-      className={cn("p-4", STATUS_STYLES[show.status].column)}
+      className={cn("p-4", COLUNA_STYLES[coluna].column)}
     >
       {/* Só o corpo abre a ficha; o seletor abaixo fica de fora do clique. */}
       <button
@@ -100,7 +140,11 @@ function TouchShowCard({
         className="w-full text-left"
         onClick={() => onOpen(show.id)}
       >
-        <ShowCardBody show={show} />
+        <ShowCardBody
+          show={show}
+          mostrarStatus={coluna === COLUNA_REALIZADOS}
+          arrastavel={false}
+        />
       </button>
 
       <div className="mt-3 border-t pt-3">
@@ -160,6 +204,32 @@ function DraggableShowCard({
   );
 }
 
+/**
+ * Card da coluna de realizados: abre a ficha, mas não arrasta — a coluna vem
+ * da data do evento, e arrastar para fora dela não mudaria nada.
+ */
+function StaticShowCard({
+  show,
+  onOpen,
+}: {
+  show: ShowWithClient;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <Card
+      onClick={() => onOpen(show.id)}
+      data-testid={`card-${show.id}`}
+      className={cn(
+        "group cursor-pointer p-4 transition-shadow hover:shadow-md",
+        COLUNA_STYLES[COLUNA_REALIZADOS].column
+      )}
+    >
+      <ShowCardBody show={show} mostrarStatus arrastavel={false} />
+    </Card>
+  );
+}
+
+/** Coluna de status: aceita soltura e tem cards arrastáveis. */
 function KanbanColumn({
   status,
   shows,
@@ -170,25 +240,9 @@ function KanbanColumn({
   onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  const style = STATUS_STYLES[status];
-  const total = shows.reduce((sum, s) => sum + (s.value_cents ?? 0), 0);
 
   return (
-    <div className="flex flex-col">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} />
-          <h2 className="text-sm font-semibold">{style.label}</h2>
-        </div>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {shows.length}
-        </span>
-      </div>
-
-      <p className="mb-2 text-xs text-muted-foreground">
-        {formatCurrency(total)}
-      </p>
-
+    <ColumnShell coluna={status} shows={shows}>
       {/* min-h garante área de soltura mesmo com a coluna vazia. */}
       <div
         ref={setNodeRef}
@@ -209,6 +263,70 @@ function KanbanColumn({
           <DraggableShowCard key={show.id} show={show} onOpen={onOpen} />
         ))}
       </div>
+    </ColumnShell>
+  );
+}
+
+/**
+ * Coluna dos realizados: mesmo desenho das outras, sem soltura nem arrasto.
+ * Ocupa a posição que era da coluna de cancelados.
+ */
+function RealizadosColumn({
+  shows,
+  onOpen,
+}: {
+  shows: ShowWithClient[];
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <ColumnShell coluna={COLUNA_REALIZADOS} shows={shows}>
+      <div
+        data-testid={`coluna-${COLUNA_REALIZADOS}`}
+        className="flex min-h-40 flex-col gap-3 rounded-lg border-2 border-dashed border-transparent bg-muted/30 p-2 dark:bg-muted/10"
+      >
+        {shows.length === 0 && (
+          <p className="p-4 text-center text-xs text-muted-foreground">
+            Nenhum show realizado
+          </p>
+        )}
+        {shows.map((show) => (
+          <StaticShowCard key={show.id} show={show} onOpen={onOpen} />
+        ))}
+      </div>
+    </ColumnShell>
+  );
+}
+
+/** Cabeçalho comum às colunas: cor, título, contagem e soma. */
+function ColumnShell({
+  coluna,
+  shows,
+  children,
+}: {
+  coluna: ColunaKanban;
+  shows: ShowWithClient[];
+  children: ReactNode;
+}) {
+  const style = COLUNA_STYLES[coluna];
+  const total = shows.reduce((sum, s) => sum + (s.value_cents ?? 0), 0);
+
+  return (
+    <div className="flex flex-col">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} />
+          <h2 className="text-sm font-semibold">{style.label}</h2>
+        </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          {shows.length}
+        </span>
+      </div>
+
+      <p className="mb-2 text-xs text-muted-foreground">
+        {formatCurrency(total)}
+      </p>
+
+      {children}
     </div>
   );
 }
@@ -216,6 +334,10 @@ function KanbanColumn({
 /**
  * Quadro Kanban dos shows. Arrastar um card entre colunas grava o novo status
  * no banco.
+ *
+ * A quarta coluna não é um status: são os shows cuja data já passou. Um show
+ * entra nela sozinho, saindo da coluna do status em que estava, para o quadro
+ * mostrar só o que ainda está por acontecer.
  */
 export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }) {
   const [shows, setShows] = useState<ShowWithClient[]>([]);
@@ -223,7 +345,7 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
   const [error, setError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   /** Aba visível no celular — no desktop as quatro colunas aparecem juntas. */
-  const [abaAtiva, setAbaAtiva] = useState<ShowStatus>("criado");
+  const [abaAtiva, setAbaAtiva] = useState<ColunaKanban>("criado");
   const isMobile = useIsMobile();
 
   const sensors = useSensors(
@@ -252,13 +374,23 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
   }, []);
 
   const grouped = useMemo(() => {
-    const base: Record<ShowStatus, ShowWithClient[]> = {
+    const base: Record<ColunaKanban, ShowWithClient[]> = {
       criado: [],
       em_fechamento: [],
       fechado: [],
       cancelado: [],
+      [COLUNA_REALIZADOS]: [],
     };
-    for (const show of shows) base[show.status]?.push(show);
+    // `agora` é calculado uma vez por agrupamento para todos os cards
+    // responderem ao mesmo instante.
+    const agora = new Date();
+    for (const show of shows) {
+      if (jaRealizado(show, agora)) base[COLUNA_REALIZADOS].push(show);
+      else base[show.status]?.push(show);
+    }
+    // Realizados do mais recente para o mais antigo: o que acabou de acontecer
+    // é o que ainda tem pendência (acerto, vídeo, feedback).
+    base[COLUNA_REALIZADOS].reverse();
     return base;
   }, [shows]);
 
@@ -301,7 +433,8 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
-    // Só as colunas são áreas de soltura, então o id é sempre um status.
+    // Só as colunas de status são áreas de soltura; a de realizados não recebe
+    // arrasto, então o id que chega aqui é sempre um status.
     const show = shows.find((s) => s.id === active.id);
     if (show) void moverShow(show, over.id as ShowStatus);
   }
@@ -327,18 +460,18 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
           <div
             className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1"
             role="tablist"
-            aria-label="Status dos shows"
+            aria-label="Colunas dos shows"
           >
-            {SHOW_STATUSES.map((status) => {
-              const ativa = status === abaAtiva;
-              const style = STATUS_STYLES[status];
+            {COLUNAS_KANBAN.map((coluna) => {
+              const ativa = coluna === abaAtiva;
+              const style = COLUNA_STYLES[coluna];
               return (
                 <button
-                  key={status}
+                  key={coluna}
                   type="button"
                   role="tab"
                   aria-selected={ativa}
-                  onClick={() => setAbaAtiva(status)}
+                  onClick={() => setAbaAtiva(coluna)}
                   className={cn(
                     "flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors",
                     ativa
@@ -354,7 +487,7 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
                       ativa ? "bg-primary-foreground/20" : "bg-muted"
                     )}
                   >
-                    {grouped[status].length}
+                    {grouped[coluna].length}
                   </span>
                 </button>
               );
@@ -375,13 +508,16 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
           >
             {grouped[abaAtiva].length === 0 ? (
               <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Nenhum show com este status.
+                {abaAtiva === COLUNA_REALIZADOS
+                  ? "Nenhum show realizado ainda."
+                  : "Nenhum show com este status."}
               </p>
             ) : (
               grouped[abaAtiva].map((show) => (
                 <TouchShowCard
                   key={show.id}
                   show={show}
+                  coluna={abaAtiva}
                   onOpen={onOpenShow}
                   onMove={(s, status) => void moverShow(s, status)}
                 />
@@ -401,7 +537,7 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
             className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
             data-testid="kanban"
           >
-            {SHOW_STATUSES.map((status) => (
+            {COLUNAS_ARRASTAVEIS.map((status) => (
               <KanbanColumn
                 key={status}
                 status={status}
@@ -409,6 +545,10 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
                 onOpen={onOpenShow}
               />
             ))}
+            <RealizadosColumn
+              shows={grouped[COLUNA_REALIZADOS]}
+              onOpen={onOpenShow}
+            />
           </div>
 
           {/* Card "flutuante" que acompanha o cursor durante o arrasto. */}

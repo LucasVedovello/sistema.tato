@@ -35,8 +35,9 @@ export type Box = {
 export type OverlayText = {
   box: Box;
   /**
-   * Texto do campo. Trechos entre `**` saem em negrito, como no modelo
-   * ("**2.1 -**", "**CONTRATANTE:**").
+   * Texto do campo. Trechos entre `**` saem em negrito, como no modelo —
+   * onde o negrito marca as PARTES ("**CONTRATANTE:**", "**O CONTRATADO**") e
+   * nunca o número do subitem, que sai em corpo normal ("2.1 - ").
    */
   text: string;
   /**
@@ -82,14 +83,24 @@ const box = (page: number, x: number, y: number, w: number, h: number): Box => (
  * ascendente da fonte — ou seja, cobrem a linha inteira.
  */
 const BOXES = {
+  /** Página 1: qualificação do CONTRATADO (três linhas, no topo). */
+  contratado: box(1, 70, 117, 466, 46),
   /** Página 1: "CONTRATANTE: Nome completo:, CPF/CNPJ:, Telefone:, Endereço:" */
   contratante: box(1, 70, 175, 466, 27),
   /** Página 1, cláusula 1: as três linhas do objeto. */
   objeto: box(1, 70, 233, 466, 50),
-  /** Página 2, cláusula 3: o parágrafo 2.1 inteiro (cinco linhas). */
+  /** Página 1, cláusula 2.1: obrigações do contratado (seis linhas). */
+  obrigacoesContratado: box(1, 70, 320, 466, 88),
+  /** Página 1, cláusula 2.2: obrigações do contratante (cinco linhas). */
+  obrigacoesContratante: box(1, 70, 422, 466, 74),
+  /** Página 2, cláusula 3: o primeiro parágrafo inteiro (cinco linhas). */
   remuneracao: box(2, 70, 102, 466, 86),
+  /** Página 2, cláusula 3: o parágrafo das despesas (duas linhas). */
+  despesas: box(2, 70, 189, 466, 32),
   /** Página 2, cláusula 4.1: vigência + multa de rescisão. */
   multa: box(2, 70, 306, 466, 71),
+  /** Página 2, cláusula 4.3: descumprimento das obrigações (duas linhas). */
+  descumprimento: box(2, 70, 422, 466, 32),
   /** Página 2, fim da cláusula 5: "... sucessores. Paulínia, <data>." */
   localData: box(2, 70, 567, 400, 15),
   /** Página 2: rótulo sob a linha de assinatura do contratado. */
@@ -156,6 +167,96 @@ export const longDate = (d: Date): string =>
 const ou = (valor: string, vazio = "____________") =>
   valor.trim() ? valor.trim() : vazio;
 
+/**
+ * Como o horário entra na frase da cláusula 1.
+ *
+ * Uma hora cheia ("20:00", "20h30") pede a preposição: "às 20:00". O campo do
+ * diálogo também aceita faixas e descrições ("23h às 01h", "após o headliner"),
+ * e aí "às" quebraria a frase — nesses casos volta a forma neutra.
+ */
+const horario = (valor: string): string => {
+  const texto = valor.trim();
+  if (!texto) return "em horário a combinar";
+  return /^\d{1,2}[:h]\d{2}$/.test(texto) ? `às ${texto}` : `no horário ${texto}`;
+};
+
+/* ==========================================================================
+ * CORREÇÕES DO TEXTO IMPRESSO NO MODELO
+ * ==========================================================================
+ *
+ * Os parágrafos abaixo NÃO dependem dos dados do show: são trechos que já vêm
+ * escritos no PDF do bucket e que precisavam de correção de português
+ * ("comprir", "aresponsabilidade", "já estão contemplados", a cláusula 3 com
+ * subitens numerados como 2.1/2.2). Como o PDF é o documento oficial e não é
+ * reescrito, a correção segue o mesmo caminho do resto: tapa-se a linha
+ * original e escreve-se a versão corrigida por cima, no mesmo lugar.
+ *
+ * O parágrafo INTEIRO é reescrito, e não só a palavra errada, porque o modelo
+ * é justificado: reescrever meia linha deixaria o espaçamento visivelmente
+ * diferente do resto do bloco.
+ *
+ * Ao trocar o PDF-modelo do bucket por um já corrigido, basta apagar estas
+ * entradas — nada mais no arquivo depende delas.
+ */
+
+/** Cláusula 2.1 — igual nos dois modelos. */
+const OBRIGACOES_CONTRATADO =
+  "2.1 - **O CONTRATADO** compromete-se a cumprir todos os termos " +
+  "previamente acordados com o produtor do evento, cumprir rigorosamente os " +
+  "horários, realizar sua apresentação nas melhores condições técnicas e " +
+  "artísticas possíveis, sempre manter seu repertório condizente com o evento " +
+  "ou casa de show, manter seus equipamentos em perfeito estado de " +
+  "funcionamento, bem como assegurar a organização e a segurança básica de sua " +
+  "equipe, garantindo, assim, a adequada execução do evento.";
+
+/** Cláusula 3.2 (impressa como "2.2") — igual nos dois modelos. */
+const DESPESAS =
+  "3.2 - Despesas como transporte e equipe já estão contempladas no valor " +
+  "total do show, fica a responsabilidade do contratante somente o rider " +
+  "artístico e o rider técnico dos artistas.";
+
+/** Monta as correções de um modelo. */
+function correcoes(textos: {
+  /** Cláusula 2.2 — muda no trecho do rider entre os dois modelos. */
+  obrigacoesContratante: string;
+  /** Cláusula 4.3 — idem. */
+  descumprimento: string;
+  /** Qualificação do CONTRATADO. Só o modelo de produção precisa reescrevê-la. */
+  contratado?: string;
+}): OverlayText[] {
+  const campos: OverlayText[] = [
+    {
+      box: BOXES.obrigacoesContratado,
+      text: OBRIGACOES_CONTRATADO,
+      redact: true,
+      justify: true,
+    },
+    {
+      box: BOXES.obrigacoesContratante,
+      text: textos.obrigacoesContratante,
+      redact: true,
+      justify: true,
+    },
+    { box: BOXES.despesas, text: DESPESAS, redact: true, justify: true },
+    {
+      box: BOXES.descumprimento,
+      text: textos.descumprimento,
+      redact: true,
+      justify: true,
+    },
+  ];
+
+  if (textos.contratado) {
+    campos.unshift({
+      box: BOXES.contratado,
+      text: textos.contratado,
+      redact: true,
+      justify: true,
+    });
+  }
+  return campos;
+}
+
 /** Parte do valor total, em centavos (30%, 70%, 50%…). */
 const parte = (cents: number | null, fracao: number) =>
   cents == null ? null : Math.round(cents * fracao);
@@ -180,9 +281,14 @@ function remuneracao(
       `${opts.quando}, ${opts.conta}`;
 
   return (
-    `**2.1 -** O CONTRATANTE pagará ao CONTRATADO o valor de ${dinheiro(total)} ` +
+    // "3.1" e não "2.1": o modelo impresso numera os subitens da cláusula 3
+    // como se ainda fossem da cláusula 2. O número fica em corpo normal, como
+    // os subitens que já vêm impressos (2.3, 2.4, 4.2).
+    `3.1 - O CONTRATANTE pagará ao CONTRATADO o valor de ${dinheiro(total)} ` +
     `(${extenso(total)}), ${forma}. Segue o CNPJ para a realização da ` +
-    `transferência: ${opts.cnpj} — ${opts.banco}.`
+    // Hífen simples (e não travessão): é o separador que o contrato usa entre
+    // o CNPJ e o banco, e ele sai igual na tela e no PDF.
+    `transferência: ${opts.cnpj} - ${opts.banco}.`
   );
 }
 
@@ -190,7 +296,7 @@ function remuneracao(
 function multa(d: ContractData): string {
   const metade = parte(d.valueCents, 0.5);
   return (
-    "**4.1 -** O presente contrato terá vigência a partir de sua assinatura até " +
+    "4.1 - O presente contrato terá vigência a partir de sua assinatura até " +
     "o cumprimento integral das obrigações aqui estabelecidas. Em caso de " +
     "rescisão por iniciativa do **CONTRATANTE ou do CONTRATADO**, será aplicada " +
     `multa correspondente a 50% do valor do show, equivalente a ` +
@@ -242,7 +348,7 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
               `O presente contrato tem por objeto a contratação do show do ` +
               `artista ${ou(d.artist)}, a ser realizado na data de ${
                 d.eventDate ? formatDate(d.eventDate) : "__/__/____"
-              }, em ${local}, no horário ${ou(d.eventTime, "a combinar")}.`,
+              }, em ${local}, ${horario(d.eventTime)}.`,
           },
           {
             box: BOXES.remuneracao,
@@ -281,6 +387,20 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             redact: true,
             text: `${ou(d.clientName)} – CONTRATANTE`,
           },
+          ...correcoes({
+            obrigacoesContratante:
+              "2.2 - **O CONTRATANTE** compromete-se a cumprir todos os " +
+              "termos previamente acordados com o produtor do evento, cumprir " +
+              "rigorosamente os horários, garantir acesso ao local do evento " +
+              "com segurança, atender o rider técnico e rider artístico " +
+              "enviado pela produção do artista, realizar os pagamentos " +
+              "previstos neste contrato, garantir condições estruturais e de " +
+              "segurança adequadas para a realização do evento.",
+            descumprimento:
+              "4.3 - O não cumprimento das obrigações do artista previstas " +
+              "na Cláusula 2 resultará em rescisão automática e multa por " +
+              "culpa exclusiva do **CONTRATADO**.",
+          }),
         ];
       },
     },
@@ -288,10 +408,9 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
     producao: {
       key: "producao",
       label: "Contrato Base Produção",
-      description:
-        "Artistas contratados via escritório Cv.produção.artistica.",
+      description: "Artistas contratados via escritório CV Produção Artística.",
       path: "contrato-base-producao.pdf.pdf",
-      office: "Cv.produção.artistica",
+      office: "CV Produção Artística",
       overlay: (d) => {
         // O nome do evento é opcional: sem ele a frase vai direto ao local, em
         // vez de repetir o mesmo endereço como evento E como local.
@@ -307,13 +426,11 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             justify: true,
             text:
               `O presente contrato tem por objeto a contratação de artistas, ` +
-              `por meio do escritório Cv.produção.artistica, para ` +
+              `por meio do escritório CV Produção Artística, para ` +
               `apresentação na data de ${
                 d.eventDate ? formatDate(d.eventDate) : "__/__/____"
-              }, ${evento}em ${ou(d.location)}, no horário ${ou(
-                d.eventTime,
-                "a combinar"
-              )}. Artista(s): ${ou(d.artist)}.`,
+              }, ${evento}em ${ou(d.location)}, ${horario(d.eventTime)}. ` +
+              `Artista(s): ${ou(d.artist)}.`,
           },
           {
             box: BOXES.remuneracao,
@@ -345,13 +462,35 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
           {
             box: BOXES.rotuloContratado,
             redact: true,
-            text: "Cv.produção.artistica – CONTRATADO",
+            text: "CV Produção Artística – CONTRATADO",
           },
           {
             box: BOXES.rotuloContratante,
             redact: true,
             text: `${ou(d.clientName)} – CONTRATANTE`,
           },
+          ...correcoes({
+            // O nome do escritório sai padronizado ("CV Produção Artística")
+            // também na qualificação impressa no alto da página 1.
+            contratado:
+              "**CONTRATADO:** CV Produção Artística, CNPJ: " +
+              "59.690.383/0001-10, Telefone: (19) 99585-3230, Endereço: Rua " +
+              "Nossa Senhora Auxiliadora, nº 235, representado por Caio " +
+              "Scarano Vedovello.",
+            obrigacoesContratante:
+              "2.2 - **O CONTRATANTE** compromete-se a cumprir todos os " +
+              "termos previamente acordados com o produtor do evento, cumprir " +
+              "rigorosamente os horários, garantir acesso ao local do evento " +
+              "com segurança, atender o rider técnico e rider artístico dos " +
+              "artistas enviado pela produção do escritório, realizar os " +
+              "pagamentos previstos neste contrato, garantir condições " +
+              "estruturais e de segurança adequadas para a realização do " +
+              "evento.",
+            descumprimento:
+              "4.3 - O não cumprimento das obrigações previstas na " +
+              "Cláusula 2 resultará em rescisão automática e multa por culpa " +
+              "exclusiva do **CONTRATADO**.",
+          }),
         ];
       },
     },

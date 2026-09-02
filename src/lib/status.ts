@@ -60,3 +60,57 @@ export const CALENDAR_STATUS_PRIORITY: ShowStatus[] = [
   "em_fechamento",
   "criado",
 ];
+
+/**
+ * Coluna do Kanban que NÃO é um status: reúne os shows que já aconteceram.
+ *
+ * Ela ocupa o lugar que era dos cancelados. Um show entra aqui pela data do
+ * evento (ver `jaRealizado`), não por alguém arrastar o card — por isso a
+ * coluna não recebe soltura e seus cards não são arrastáveis.
+ */
+export const COLUNA_REALIZADOS = "realizados";
+
+export type ColunaKanban = ShowStatus | typeof COLUNA_REALIZADOS;
+
+/**
+ * Colunas do quadro, na ordem em que aparecem.
+ *
+ * `cancelado` ficou de fora: um show cancelado sai do quadro (continua nos
+ * relatórios, na planilha do dashboard e na própria ficha).
+ */
+export const COLUNAS_KANBAN: ColunaKanban[] = [
+  "criado",
+  "em_fechamento",
+  "fechado",
+  COLUNA_REALIZADOS,
+];
+
+/** Colunas que aceitam soltura no arrasto — só as que são status de verdade. */
+export const COLUNAS_ARRASTAVEIS: ShowStatus[] = [
+  "criado",
+  "em_fechamento",
+  "fechado",
+];
+
+/**
+ * Estilo de cada coluna. As três primeiras herdam o estilo do status; a de
+ * realizados usa violeta, que não se confunde com nenhuma das outras nem
+ * carrega o alarme do vermelho — o show aconteceu, não deu errado.
+ */
+export const COLUNA_STYLES: Record<
+  ColunaKanban,
+  { label: string; badge: string; dot: string; column: string; cell: string }
+> = {
+  criado: STATUS_STYLES.criado,
+  em_fechamento: STATUS_STYLES.em_fechamento,
+  fechado: STATUS_STYLES.fechado,
+  cancelado: STATUS_STYLES.cancelado,
+  [COLUNA_REALIZADOS]: {
+    label: "Realizados",
+    badge:
+      "bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950 dark:text-violet-200 dark:border-violet-800",
+    dot: "bg-violet-500",
+    column: "border-t-4 border-t-violet-500",
+    cell: "bg-violet-100 border-violet-300 text-violet-900 hover:bg-violet-200 dark:bg-violet-950 dark:border-violet-700 dark:text-violet-100 dark:hover:bg-violet-900",
+  },
+};
