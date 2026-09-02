@@ -20,6 +20,7 @@ import {
 } from "@/lib/contract-render";
 import { supabase } from "@/lib/supabase";
 import { contractFileName } from "@/lib/contract-pdf";
+import { formatTime } from "@/lib/utils";
 import type {
   Client,
   ContractStatus,
@@ -158,21 +159,31 @@ export const emptyExtras: ContractExtras = {
   city: "Paulínia",
 };
 
-/** Junta show + cliente + campos avulsos no formato que o modelo consome. */
+/**
+ * Junta show + cliente + campos avulsos no formato que o modelo consome.
+ *
+ * Nomes: o contrato leva SEMPRE o nome completo; o nome da ficha (artístico,
+ * curto) fica nas telas. Sem nome completo cadastrado a lacuna seria pior que
+ * o nome curto, então ele entra como reserva.
+ *
+ * Horário: o do cadastro do show é o padrão, e o campo avulso do diálogo
+ * continua podendo sobrescrevê-lo — ele aceita formas que a coluna `time` não
+ * guarda ("23h às 01h").
+ */
 export function buildContractData(
   show: Show,
   client: Client | null,
   extras: ContractExtras
 ): ContractData {
   return {
-    artist: show.artist_name,
-    clientName: client?.name ?? "",
+    artist: show.artist_full_name?.trim() || show.artist_name,
+    clientName: client?.full_name?.trim() || client?.name || "",
     clientDocument: client?.document ?? "",
     clientPhone: client?.phone ?? "",
     clientAddress: extras.clientAddress,
     eventName: extras.eventName,
     eventDate: show.event_date,
-    eventTime: extras.eventTime,
+    eventTime: extras.eventTime.trim() || formatTime(show.event_time),
     location: show.location ?? "",
     valueCents: show.value_cents,
     paymentTerms: show.payment_terms ?? "",

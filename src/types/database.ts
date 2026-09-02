@@ -26,7 +26,13 @@ export const SHOW_STATUS_LABELS: Record<ShowStatus, string> = {
 // atribuíveis a esse tipo — o que degradaria toda a inferência para `never`.
 export type Client = {
   id: string;
+  /** Nome da ficha: curto, como o escritório chama o cliente. Só uso interno. */
   name: string;
+  /**
+   * Nome completo — o único que vai para o contrato. Vazio cai no `name`:
+   * melhor o contrato sair com o nome curto do que com a lacuna.
+   */
+  full_name: string | null;
   phone: string | null;
   email: string | null;
   /** CPF/CNPJ — usado na qualificação das partes no contrato. */
@@ -37,15 +43,26 @@ export type Client = {
 
 export type Show = {
   id: string;
+  /** Nome da ficha do artista (nome artístico). Não vai para o contrato. */
   artist_name: string;
+  /** Nome completo do artista — o único que vai para o contrato. */
+  artist_full_name: string | null;
   client_id: string | null;
   event_date: string | null;
+  /** Horário do evento, "HH:MM:SS" (coluna `time`, sem fuso). */
+  event_time: string | null;
   location: string | null;
   status: ShowStatus;
   value_cents: number | null;
   payment_terms: string | null;
-  /** Se o show terá produção contratada. */
-  has_production: boolean;
+  /**
+   * Funções de produção contratadas (chaves de `PRODUCTION_ROLES`).
+   *
+   * Substituiu o antigo `has_production` (sim/não), que continua no banco só
+   * como histórico e por isso NÃO aparece aqui: mantê-lo no tipo obrigaria
+   * todo insert a respondê-lo de novo.
+   */
+  production_roles: string[];
   notes: string | null;
   created_at: string;
   updated_at: string;

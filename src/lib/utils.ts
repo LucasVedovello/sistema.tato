@@ -55,3 +55,23 @@ export function formatDate(date: string | null | undefined): string {
     year: "numeric",
   }).format(parseDateOnly(date));
 }
+
+/**
+ * Horário do banco ("20:30:00", coluna `time`) para exibição: "20:30".
+ *
+ * Devolve string VAZIA quando não há horário — diferente de `formatDate`, que
+ * devolve "—". O horário é opcional e aparece ao lado de outros dados
+ * (data, local); um travessão solto ali só polui a linha.
+ */
+export function formatTime(value: string | null | undefined): string {
+  if (!value) return "";
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  return match ? `${match[1]}:${match[2]}` : value;
+}
+
+/**
+ * Valor para o <input type="time">, que só aceita "HH:MM" (ou "HH:MM:SS").
+ * Contraparte de `formatTime` na ida para o formulário.
+ */
+export const toTimeInput = (value: string | null | undefined): string =>
+  formatTime(value);

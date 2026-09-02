@@ -15,7 +15,13 @@ import {
 import { exportCalendarShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
 import { CALENDAR_STATUS_PRIORITY, STATUS_STYLES } from "@/lib/status";
-import { cn, formatCurrency, formatDate, toDateOnly } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  formatTime,
+  toDateOnly,
+} from "@/lib/utils";
 import type { ShowStatus, ShowWithClient } from "@/types/database";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -139,7 +145,9 @@ export function Calendar() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* No celular os controles ficam numa linha só, com o mês esticado
+            entre as setas; a exportação desce para a linha de baixo. */}
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Button
             size="icon"
             variant="outline"
@@ -151,7 +159,7 @@ export function Calendar() {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           {/* first-letter (e não capitalize) para não virar "Agosto De 2026". */}
-          <span className="inline-block min-w-44 text-center font-semibold first-letter:uppercase">
+          <span className="inline-block flex-1 text-center font-semibold first-letter:uppercase sm:min-w-44 sm:flex-none">
             {MONTH_FORMAT.format(cursor)}
           </span>
           <Button
@@ -220,7 +228,7 @@ export function Calendar() {
                     : `${iso}: livre, agendar show`
                 }
                 className={cn(
-                  "group flex min-h-20 flex-col rounded-md border p-1.5 text-left transition-colors sm:min-h-24 sm:p-2",
+                  "group flex min-h-16 flex-col rounded-md border p-1 text-left transition-colors sm:min-h-24 sm:p-2",
                   style
                     ? style.cell
                     : "border-border bg-background hover:bg-accent",
@@ -231,21 +239,65 @@ export function Calendar() {
                 <span className="text-xs font-semibold">{day.getDate()}</span>
 
                 {list.length > 0 ? (
-                  <span className="mt-1 space-y-0.5 overflow-hidden">
-                    {list.slice(0, 2).map((show) => (
-                      <span
-                        key={show.id}
-                        className="block truncate text-[11px] leading-tight"
-                      >
-                        {show.artist_name}
-                      </span>
-                    ))}
-                    {list.length > 2 && (
-                      <span className="block text-[11px] opacity-70">
-                        +{list.length - 2}
-                      </span>
-                    )}
-                  </span>
+                  <>
+                    {/* No celular a célula tem ~43px: não cabe nome de
+                        artista. Cada show vira um ponto; o nome está a um
+                        toque de distância, no detalhe do dia. */}
+                    <span className="mt-1 flex flex-wrap gap-0.5 sm:hidden">
+                      {list.slice(0, 3).map((show) => (
+                        <span
+                          key={show.id}
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            STATUS_STYLES[show.status].dot
+                          )}
+                        />
+                      ))}
+                      {list.length > 3 && (
+                        <span className="text-[9px] leading-none opacity-70">
+                          +{list.length - 3}
+                        </span>
+                      )}
+                    </span>
+
+                    {/* No desktop cabe mais que o nome: horário e local
+                        entram na mesma linha, logo à frente do artista, para
+                        a agenda ser lida sem abrir o dia. */}
+                    <span className="mt-1 hidden space-y-0.5 overflow-hidden sm:block">
+                      {list.slice(0, 2).map((show) => {
+                        const hora = formatTime(show.event_time);
+                        return (
+                          <span
+                            key={show.id}
+                            className="block truncate text-[11px] leading-tight"
+                            title={[
+                              show.artist_name,
+                              hora,
+                              show.location ?? "",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          >
+                            <span className="font-medium">
+                              {show.artist_name}
+                            </span>
+                            {hora && <span className="opacity-80"> · {hora}</span>}
+                            {show.location && (
+                              <span className="opacity-80">
+                                {" "}
+                                · {show.location}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
+                      {list.length > 2 && (
+                        <span className="block text-[11px] opacity-70">
+                          +{list.length - 2}
+                        </span>
+                      )}
+                    </span>
+                  </>
                 ) : (
                   <Plus className="mt-auto h-3.5 w-3.5 self-end opacity-0 transition-opacity group-hover:opacity-60" />
                 )}
@@ -297,6 +349,9 @@ export function Calendar() {
                     <p className="truncate text-sm text-muted-foreground">
                       {show.clients?.name ?? "Sem cliente"}
                       {show.location ? ` · ${show.location}` : ""}
+                      {formatTime(show.event_time)
+                        ? ` · ${formatTime(show.event_time)}`
+                        : ""}
                     </p>
                     <span
                       className={cn(

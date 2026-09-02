@@ -38,7 +38,7 @@ export function Clients() {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
     return clients.filter((c) =>
-      [c.name, c.phone, c.email]
+      [c.name, c.full_name, c.phone, c.email]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(term))
     );
@@ -82,12 +82,15 @@ export function Clients() {
             {clients.length} cliente(s) cadastrado(s).
           </p>
         </div>
-        <div className="flex items-start gap-2">
+        {/* No celular as duas ações dividem a largura da tela; a partir de
+            sm voltam a ficar à direita do título. */}
+        <div className="flex w-full flex-col items-stretch gap-2 min-[420px]:flex-row sm:w-auto sm:items-start">
           <ExportExcelButton
             onExport={exportClientsToExcel}
             emptyMessage="Nenhum cliente cadastrado ainda."
+            className="w-full sm:w-auto"
           />
-          <Button onClick={openNew}>
+          <Button onClick={openNew} className="w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Novo cliente
           </Button>
@@ -135,6 +138,13 @@ export function Clients() {
                       {showCount} show(s)
                     </span>
                   </div>
+                  {/* O nome completo só aparece quando difere do da ficha —
+                      repetir a mesma linha duas vezes não informa nada. */}
+                  {client.full_name && client.full_name !== client.name && (
+                    <p className="text-sm text-muted-foreground">
+                      {client.full_name}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     {client.phone && (
                       <span className="flex items-center gap-1.5">

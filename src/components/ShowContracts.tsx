@@ -124,7 +124,7 @@ export function ShowContracts({ showId }: { showId: string }) {
 
   return (
     <Card data-testid="contracts">
-      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="flex-col items-start gap-2 space-y-0 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
           <FileSignature className="h-4 w-4 text-primary" />
           Contratos

@@ -49,10 +49,11 @@ export const CONTRACT_TEMPLATE: ContractTemplate = {
 
   preamble:
     "Pelo presente instrumento particular, de um lado {{contratante}}, doravante " +
-    "denominado(a) CONTRATANTE, inscrito(a) sob o nº {{contratanteDoc}}, com " +
-    "contato pelo telefone {{contratanteTel}} e e-mail {{contratanteEmail}}; e de " +
-    "outro lado o(a) artista {{artista}}, doravante denominado(a) CONTRATADO(A), " +
-    "têm entre si justo e contratado o seguinte:",
+    "denominado(a) CONTRATANTE, inscrito(a) no CPF/CNPJ sob o nº " +
+    "{{contratanteDoc}}, com contato pelo telefone {{contratanteTel}} e e-mail " +
+    "{{contratanteEmail}}; e, de outro lado, o(a) artista {{artista}}, doravante " +
+    "denominado(a) CONTRATADO(A), têm entre si, como justo e contratado, o " +
+    "seguinte:",
 
   clauses: [
     {
@@ -64,14 +65,14 @@ export const CONTRACT_TEMPLATE: ContractTemplate = {
     {
       heading: "CLÁUSULA 2ª — DO VALOR E DA FORMA DE PAGAMENTO",
       body:
-        "Pela apresentação descrita na cláusula anterior, a CONTRATANTE pagará " +
+        "Pela apresentação descrita na cláusula anterior, o CONTRATANTE pagará " +
         "ao CONTRATADO o valor de {{valor}}. Forma de pagamento: " +
         "{{formaPagamento}}.",
     },
     {
-      heading: "CLÁUSULA 3ª — DAS OBRIGAÇÕES DA CONTRATANTE",
+      heading: "CLÁUSULA 3ª — DAS OBRIGAÇÕES DO CONTRATANTE",
       body:
-        "Cabe à CONTRATANTE providenciar o local do evento em condições " +
+        "Cabe ao CONTRATANTE providenciar o local do evento em condições " +
         "adequadas de segurança, energia elétrica, palco e som, salvo acordo " +
         "diverso registrado por escrito entre as partes.",
     },
@@ -85,7 +86,7 @@ export const CONTRACT_TEMPLATE: ContractTemplate = {
       heading: "CLÁUSULA 5ª — DO CANCELAMENTO",
       body:
         "O cancelamento por qualquer das partes deverá ser comunicado por " +
-        "escrito com a maior antecedência possível, sujeitando a parte " +
+        "escrito, com a maior antecedência possível, sujeitando a parte " +
         "desistente às penalidades que vierem a ser acordadas.",
     },
   ],

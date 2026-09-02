@@ -2,9 +2,11 @@ import type { Row } from "write-excel-file/browser";
 
 import { CABECALHO, MOEDA, salvarPlanilhaLivre } from "@/lib/excel";
 import {
+  calcularFechadoPorPeriodo,
   calcularRelatorio,
   ETAPAS_FUNIL,
   MESES,
+  TODOS_OS_ARTISTAS,
   TODOS_OS_MESES,
   type LinhaShow,
 } from "@/lib/report";
@@ -37,18 +39,31 @@ const VAZIO: Row = [];
  */
 export async function exportReportToExcel(
   ano: string,
-  mes: string
+  mes: string,
+  artista: string = TODOS_OS_ARTISTAS,
+  /** Mês de referência do bloco por artista (0..11), como na tela. */
+  mesReferencia?: number
 ): Promise<number> {
   const { data, error } = await supabase
     .from("shows")
-    .select("id, status, value_cents, event_date");
+    .select("id, status, value_cents, event_date, artist_name");
   if (error) throw new Error(error.message);
 
-  const r = calcularRelatorio((data as LinhaShow[]) ?? [], ano, mes);
+  const shows = (data as LinhaShow[]) ?? [];
+  const r = calcularRelatorio(shows, ano, mes, artista);
+
+  const mesRef =
+    mesReferencia ??
+    (mes === TODOS_OS_MESES ? new Date().getMonth() : Number(mes));
+  const porPeriodo = calcularFechadoPorPeriodo(shows, ano, mesRef, artista);
 
   const linhas: Row[] = [
     [texto("Relatório de shows", true)],
     [texto("Período"), texto(r.rotuloPeriodo)],
+    [
+      texto("Artista"),
+      texto(artista === TODOS_OS_ARTISTAS ? "Todos os artistas" : artista),
+    ],
     [
       texto("Gerado em"),
       { type: Date, value: new Date(), format: "dd/mm/yyyy hh:mm" },
@@ -82,6 +97,27 @@ export async function exportReportToExcel(
           ? "Sem shows no período"
           : `${r.porStatus.fechado} fechado(s) de ${r.totalPeriodo} no período`
       ),
+    ],
+    VAZIO,
+
+    // Mesmo bloco do painel "Fechado por artista" da tela: só shows fechados,
+    // nos três recortes de tempo.
+    [texto("Fechado por artista", true)],
+    [texto("Período", true), texto("Valor", true), texto("Shows", true)],
+    [
+      texto(porPeriodo.mes.rotulo),
+      dinheiro(porPeriodo.mes.totalCents),
+      numero(porPeriodo.mes.quantidade),
+    ],
+    [
+      texto(porPeriodo.semestre.rotulo),
+      dinheiro(porPeriodo.semestre.totalCents),
+      numero(porPeriodo.semestre.quantidade),
+    ],
+    [
+      texto(porPeriodo.ano.rotulo),
+      dinheiro(porPeriodo.ano.totalCents),
+      numero(porPeriodo.ano.quantidade),
     ],
     VAZIO,
 

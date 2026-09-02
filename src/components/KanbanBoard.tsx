@@ -13,20 +13,31 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, GripVertical, MapPin } from "lucide-react";
+import { CalendarDays, Clock, GripVertical, MapPin } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { useIsMobile } from "@/lib/use-media-query";
+import { cn, formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import {
   SHOW_STATUSES,
+  SHOW_STATUS_LABELS,
   type ShowStatus,
   type ShowWithClient,
 } from "@/types/database";
 
 /** Conteúdo visual do card. Compartilhado entre a coluna e o DragOverlay. */
 function ShowCardBody({ show }: { show: ShowWithClient }) {
+  const hora = formatTime(show.event_time);
+
   return (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -43,6 +54,14 @@ function ShowCardBody({ show }: { show: ShowWithClient }) {
           <CalendarDays className="h-3.5 w-3.5" />
           {formatDate(show.event_date)}
         </div>
+        {/* Horário logo abaixo da data: é a informação que decide o resto do
+            dia de quem produz o show. */}
+        {hora && (
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {hora}
+          </div>
+        )}
         {show.location && (
           <div className="flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5" />
@@ -54,6 +73,60 @@ function ShowCardBody({ show }: { show: ShowWithClient }) {
         {formatCurrency(show.value_cents)}
       </p>
     </>
+  );
+}
+
+/**
+ * Card na versão do celular: sem arrasto (só uma coluna fica visível por vez),
+ * com um seletor para mover o show de status.
+ */
+function TouchShowCard({
+  show,
+  onOpen,
+  onMove,
+}: {
+  show: ShowWithClient;
+  onOpen: (id: string) => void;
+  onMove: (show: ShowWithClient, status: ShowStatus) => void;
+}) {
+  return (
+    <Card
+      data-testid={`card-${show.id}`}
+      className={cn("p-4", STATUS_STYLES[show.status].column)}
+    >
+      {/* Só o corpo abre a ficha; o seletor abaixo fica de fora do clique. */}
+      <button
+        type="button"
+        className="w-full text-left"
+        onClick={() => onOpen(show.id)}
+      >
+        <ShowCardBody show={show} />
+      </button>
+
+      <div className="mt-3 border-t pt-3">
+        <label
+          className="mb-1 block text-xs text-muted-foreground"
+          htmlFor={`mover-${show.id}`}
+        >
+          Mover para
+        </label>
+        <Select
+          value={show.status}
+          onValueChange={(valor) => onMove(show, valor as ShowStatus)}
+        >
+          <SelectTrigger id={`mover-${show.id}`} className="bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SHOW_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {SHOW_STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </Card>
   );
 }
 
@@ -149,6 +222,9 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  /** Aba visível no celular — no desktop as quatro colunas aparecem juntas. */
+  const [abaAtiva, setAbaAtiva] = useState<ShowStatus>("criado");
+  const isMobile = useIsMobile();
 
   const sensors = useSensors(
     // Sem a distância mínima, um clique simples viraria arrasto e o card
@@ -194,16 +270,12 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
     setActiveId(String(event.active.id));
   }
 
-  async function handleDragEnd(event: DragEndEvent) {
-    setActiveId(null);
-    const { active, over } = event;
-    if (!over) return;
-
-    // Só as colunas são áreas de soltura, então o id é sempre um status.
-    const novoStatus = over.id as ShowStatus;
-    const show = shows.find((s) => s.id === active.id);
-    if (!show || show.status === novoStatus) return;
-
+  /**
+   * Move o show de status. Serve ao arrasto (desktop) e ao seletor do card
+   * (celular) — a regra de otimismo e desfazer é a mesma nos dois.
+   */
+  async function moverShow(show: ShowWithClient, novoStatus: ShowStatus) {
+    if (show.status === novoStatus) return;
     const anterior = show.status;
     // Move na hora e desfaz se o banco recusar — arrastar tem que parecer
     // instantâneo.
@@ -225,6 +297,15 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
     }
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    // Só as colunas são áreas de soltura, então o id é sempre um status.
+    const show = shows.find((s) => s.id === active.id);
+    if (show) void moverShow(show, over.id as ShowStatus);
+  }
+
   if (loading) return <p className="text-muted-foreground">Carregando shows…</p>;
 
   return (
@@ -235,41 +316,116 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
         </Card>
       )}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        <div
-          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-          data-testid="kanban"
-        >
-          {SHOW_STATUSES.map((status) => (
-            <KanbanColumn
-              key={status}
-              status={status}
-              shows={grouped[status]}
-              onOpen={onOpenShow}
-            />
-          ))}
-        </div>
+      {isMobile ? (
+        /*
+         * Celular: uma coluna por vez, escolhida nas abas. Quatro colunas lado
+         * a lado não cabem em 375px, e empilhá-las daria uma página que só
+         * termina na rolagem. Sem arrasto aqui — só uma coluna está visível,
+         * então o card traz um seletor de status.
+         */
+        <div data-testid="kanban">
+          <div
+            className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1"
+            role="tablist"
+            aria-label="Status dos shows"
+          >
+            {SHOW_STATUSES.map((status) => {
+              const ativa = status === abaAtiva;
+              const style = STATUS_STYLES[status];
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativa}
+                  onClick={() => setAbaAtiva(status)}
+                  className={cn(
+                    "flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors",
+                    ativa
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground"
+                  )}
+                >
+                  <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} />
+                  {style.label}
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 text-xs",
+                      ativa ? "bg-primary-foreground/20" : "bg-muted"
+                    )}
+                  >
+                    {grouped[status].length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Card "flutuante" que acompanha o cursor durante o arrasto. */}
-        <DragOverlay>
-          {activeShow && (
-            <Card
-              className={cn(
-                "group cursor-grabbing p-4 shadow-xl",
-                STATUS_STYLES[activeShow.status].column
-              )}
-            >
-              <ShowCardBody show={activeShow} />
-            </Card>
-          )}
-        </DragOverlay>
-      </DndContext>
+          <p className="mb-3 text-sm text-muted-foreground">
+            {grouped[abaAtiva].length} show(s) ·{" "}
+            {formatCurrency(
+              grouped[abaAtiva].reduce((soma, s) => soma + (s.value_cents ?? 0), 0)
+            )}
+          </p>
+
+          <div
+            className="flex flex-col gap-3"
+            data-testid={`coluna-${abaAtiva}`}
+            role="tabpanel"
+          >
+            {grouped[abaAtiva].length === 0 ? (
+              <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Nenhum show com este status.
+              </p>
+            ) : (
+              grouped[abaAtiva].map((show) => (
+                <TouchShowCard
+                  key={show.id}
+                  show={show}
+                  onOpen={onOpenShow}
+                  onMove={(s, status) => void moverShow(s, status)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveId(null)}
+        >
+          <div
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+            data-testid="kanban"
+          >
+            {SHOW_STATUSES.map((status) => (
+              <KanbanColumn
+                key={status}
+                status={status}
+                shows={grouped[status]}
+                onOpen={onOpenShow}
+              />
+            ))}
+          </div>
+
+          {/* Card "flutuante" que acompanha o cursor durante o arrasto. */}
+          <DragOverlay>
+            {activeShow && (
+              <Card
+                className={cn(
+                  "group cursor-grabbing p-4 shadow-xl",
+                  STATUS_STYLES[activeShow.status].column
+                )}
+              >
+                <ShowCardBody show={activeShow} />
+              </Card>
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
     </div>
   );
 }

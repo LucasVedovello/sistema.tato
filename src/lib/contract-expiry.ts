@@ -32,22 +32,22 @@ export async function runContractExpiry(): Promise<number> {
  * telas — assim nenhuma delas chega a desenhar um estado que já expirou.
  */
 export function useContractExpiry(enabled: boolean): { checking: boolean } {
-  const [checking, setChecking] = useState(enabled);
+  const [checking, setChecking] = useState(true);
   const started = useRef(false);
 
   useEffect(() => {
+    // `started` já garante uma execução só — inclusive no StrictMode, que em
+    // desenvolvimento monta, desmonta e monta o efeito de novo.
+    //
+    // CUIDADO: não dá para cancelar o resultado no cleanup. A versão anterior
+    // fazia isso e travava a tela em "Carregando…" depois do login: o
+    // StrictMode invalidava a primeira execução, a segunda saía cedo pelo
+    // `started`, e ninguém mais desligava o `checking`.
     if (!enabled || started.current) return;
     started.current = true;
-
-    let active = true;
-    void runContractExpiry().finally(() => {
-      if (active) setChecking(false);
-    });
-
-    return () => {
-      active = false;
-    };
+    void runContractExpiry().finally(() => setChecking(false));
   }, [enabled]);
 
+  // Sem sessão não há o que checar, e a tela não pode ficar esperando.
   return { checking: enabled && checking };
 }

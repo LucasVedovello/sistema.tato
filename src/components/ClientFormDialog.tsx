@@ -24,7 +24,14 @@ interface ClientFormDialogProps {
   onSaved: (client: Client) => void;
 }
 
-const empty = { name: "", phone: "", email: "", document: "", notes: "" };
+const empty = {
+  name: "",
+  full_name: "",
+  phone: "",
+  email: "",
+  document: "",
+  notes: "",
+};
 
 /**
  * Formulário de cliente em diálogo. É o mesmo componente usado na seção
@@ -51,6 +58,7 @@ export function ClientFormDialog({
       client
         ? {
             name: client.name,
+            full_name: client.full_name ?? "",
             phone: client.phone ?? "",
             email: client.email ?? "",
             document: client.document ?? "",
@@ -71,6 +79,7 @@ export function ClientFormDialog({
 
     const payload = {
       name: form.name.trim(),
+      full_name: form.full_name.trim() || null,
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       document: form.document.trim() || null,
@@ -105,21 +114,42 @@ export function ClientFormDialog({
             {isEditing ? "Editar cliente" : "Novo cliente"}
           </DialogTitle>
           <DialogDescription>
-            Apenas o nome é obrigatório.
+            Apenas o nome da ficha é obrigatório.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="client-name">Nome *</Label>
-            <Input
-              id="client-name"
-              value={form.name}
-              onChange={(e) => update("name", e.target.value)}
-              placeholder="Nome do contratante"
-              required
-              autoFocus
-            />
+          {/* Dois nomes: o da ficha é o que aparece nas telas; o completo
+              é o único que entra no contrato. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="client-name">Nome da ficha *</Label>
+              <Input
+                id="client-name"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="Como o cliente é chamado"
+                required
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Usado nas listagens e na ficha do show.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="client-full-name">Nome completo</Label>
+              <Input
+                id="client-full-name"
+                value={form.full_name}
+                onChange={(e) => update("full_name", e.target.value)}
+                placeholder="Nome civil / razão social"
+              />
+              <p className="text-xs text-muted-foreground">
+                É este que sai no contrato. Em branco, o contrato usa o nome da
+                ficha.
+              </p>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

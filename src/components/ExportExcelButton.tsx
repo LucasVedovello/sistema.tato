@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * Botão de exportação para Excel, igual em todas as telas.
@@ -17,12 +18,14 @@ export function ExportExcelButton({
   label = "Exportar para Excel",
   variant = "outline",
   disabled = false,
+  className,
 }: {
   onExport: () => Promise<number>;
   emptyMessage?: string;
   label?: string;
   variant?: "default" | "outline";
   disabled?: boolean;
+  className?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,10 +48,16 @@ export function ExportExcelButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button variant={variant} onClick={handleClick} disabled={busy || disabled}>
+    <div className={cn("flex flex-col items-end gap-1", className)}>
+      <Button
+        variant={variant}
+        onClick={handleClick}
+        disabled={busy || disabled}
+        className="w-full sm:w-auto"
+      >
         <FileSpreadsheet className="h-4 w-4" />
-        {busy ? "Gerando…" : label}
+        {/* O rótulo encolhe onde a largura é disputada. */}
+        <span className="truncate">{busy ? "Gerando…" : label}</span>
       </Button>
       {empty && <p className="text-xs text-muted-foreground">{emptyMessage}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}

@@ -5,7 +5,13 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      // 2rem fixos comiam 64px dos 375px de um celular. O respiro cresce com a
+      // tela em vez de ser o mesmo em todo lugar.
+      padding: {
+        DEFAULT: "1rem",
+        sm: "1.5rem",
+        lg: "2rem",
+      },
       screens: {
         "2xl": "1400px",
       },

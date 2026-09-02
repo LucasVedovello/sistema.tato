@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, TrendingUp, XCircle } from "lucide-react";
+import { BarChart3, Mic2, TrendingUp, XCircle } from "lucide-react";
 
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,16 +11,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  artistasDisponiveis,
+  calcularFechadoPorPeriodo,
   calcularRelatorio,
   ETAPAS_FUNIL,
   MESES,
+  PERIODOS_ARTISTA,
+  TODOS_OS_ARTISTAS,
   TODOS_OS_MESES,
   type LinhaShow,
+  type PeriodoArtista,
 } from "@/lib/report";
 import { exportReportToExcel } from "@/lib/report-export";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
-import { cn, formatCurrency, parseDateOnly } from "@/lib/utils";
+import { cn, formatCurrency, formatDate, parseDateOnly } from "@/lib/utils";
 import type { ShowStatus } from "@/types/database";
 
 /** Cor da barra de cada etapa — a mesma usada no Kanban e no calendário. */
@@ -63,13 +68,15 @@ export function Reports() {
   const hoje = new Date();
   const [ano, setAno] = useState(String(hoje.getFullYear()));
   const [mes, setMes] = useState<string>(String(hoje.getMonth()));
+  const [artista, setArtista] = useState<string>(TODOS_OS_ARTISTAS);
+  const [periodoArtista, setPeriodoArtista] = useState<PeriodoArtista>("mes");
 
   useEffect(() => {
     let active = true;
     (async () => {
       const { data, error } = await supabase
         .from("shows")
-        .select("id, status, value_cents, event_date");
+        .select("id, status, value_cents, event_date, artist_name");
 
       if (!active) return;
       if (error) setError(error.message);
@@ -80,6 +87,29 @@ export function Reports() {
       active = false;
     };
   }, []);
+
+  /** Artistas que aparecem nos dados (todos os anos, não só o filtrado). */
+  const artistas = useMemo(() => artistasDisponiveis(shows), [shows]);
+
+  /**
+   * Mês de referência do painel por artista.
+   *
+   * Com "Ano inteiro" escolhido no filtro não existe mês selecionado, e o
+   * painel precisa de um para recortar o mês e o semestre: cai no mês corrente
+   * quando o ano filtrado é o de hoje, e em janeiro nos demais. Cada cartão
+   * mostra o período que representa, então não sobra ambiguidade na leitura.
+   */
+  const mesReferencia =
+    mes === TODOS_OS_MESES
+      ? Number(ano) === hoje.getFullYear()
+        ? hoje.getMonth()
+        : 0
+      : Number(mes);
+
+  const fechadoPorPeriodo = useMemo(
+    () => calcularFechadoPorPeriodo(shows, ano, mesReferencia, artista),
+    [shows, ano, mesReferencia, artista]
+  );
 
   /** Anos que aparecem nos dados, mais o ano corrente. */
   const anosDisponiveis = useMemo(() => {
@@ -107,7 +137,10 @@ export function Reports() {
     conversao,
     semData,
     rotuloPeriodo,
-  } = useMemo(() => calcularRelatorio(shows, ano, mes), [shows, ano, mes]);
+  } = useMemo(
+    () => calcularRelatorio(shows, ano, mes, artista),
+    [shows, ano, mes, artista]
+  );
 
   const maiorEtapa = Math.max(
     1,
@@ -127,14 +160,35 @@ export function Reports() {
             Relatórios
           </h1>
           <p className="text-sm text-muted-foreground">
-            Por data do evento. Período: {rotuloPeriodo}.
+            Por data do evento. Período: {rotuloPeriodo}
+            {artista === TODOS_OS_ARTISTAS ? "" : ` · Artista: ${artista}`}.
           </p>
         </div>
 
-        {/* Filtros numa linha só, acima dos números. */}
-        <div className="flex gap-2">
+        {/* Filtros numa linha só, acima dos números. No celular os dois
+            selects dividem a largura e a exportação desce para a linha de
+            baixo. */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          {/* O artista recorta o relatório inteiro — funil e conversão
+              inclusive —, e não só o painel de valores fechados. */}
+          <Select value={artista} onValueChange={setArtista}>
+            <SelectTrigger className="w-full sm:w-52" aria-label="Artista">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS_OS_ARTISTAS}>
+                Todos os artistas
+              </SelectItem>
+              {artistas.map((nome) => (
+                <SelectItem key={nome} value={nome}>
+                  {nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-40" aria-label="Mês">
+            <SelectTrigger className="w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Mês">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -148,7 +202,7 @@ export function Reports() {
           </Select>
 
           <Select value={ano} onValueChange={setAno}>
-            <SelectTrigger className="w-28" aria-label="Ano">
+            <SelectTrigger className="w-24 flex-1 sm:w-28 sm:flex-none" aria-label="Ano">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -162,8 +216,9 @@ export function Reports() {
 
           {/* Exporta o período selecionado, com os mesmos números da tela. */}
           <ExportExcelButton
-            onExport={() => exportReportToExcel(ano, mes)}
+            onExport={() => exportReportToExcel(ano, mes, artista, mesReferencia)}
             emptyMessage="Nenhum show no período — a planilha saiu com os totais zerados."
+            className="w-full sm:w-auto"
           />
         </div>
       </div>
@@ -200,6 +255,83 @@ export function Reports() {
           }
         />
       </div>
+
+      {/* Valor fechado por artista, nos três recortes de tempo. Os cartões
+          são também o seletor: o período escolhido manda na lista abaixo. */}
+      <Card data-testid="fechado-por-artista">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Mic2 className="h-4 w-4 text-primary" />
+            Fechado por artista
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {artista === TODOS_OS_ARTISTAS
+              ? "Todos os artistas"
+              : artista}{" "}
+            · só shows com status “Fechado”. Toque num período para ver os
+            shows dele.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3" role="tablist">
+            {PERIODOS_ARTISTA.map(({ key, label }) => {
+              const dados = fechadoPorPeriodo[key];
+              const ativo = key === periodoArtista;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  onClick={() => setPeriodoArtista(key)}
+                  data-testid={`periodo-${key}`}
+                  className={cn(
+                    "rounded-lg border p-4 text-left transition-colors",
+                    ativo
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-accent"
+                  )}
+                >
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight">
+                    {formatCurrency(dados.totalCents)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {dados.rotulo} · {dados.quantidade} show(s)
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {fechadoPorPeriodo[periodoArtista].shows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum show fechado em {fechadoPorPeriodo[periodoArtista].rotulo}.
+            </p>
+          ) : (
+            <ul className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+              {fechadoPorPeriodo[periodoArtista].shows.map((show) => (
+                <li
+                  key={show.id}
+                  className="flex items-center justify-between gap-3 p-3 text-sm"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">
+                      {show.artist_name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(show.event_date)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {formatCurrency(show.value_cents)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

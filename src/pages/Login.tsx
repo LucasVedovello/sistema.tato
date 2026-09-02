@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/context/AuthContext";
 
@@ -42,7 +43,10 @@ export function Login() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-muted/40 p-4 dark:bg-background">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4 dark:bg-background">
+      <div className="absolute inset-x-0 top-0">
+        <OfflineBanner />
+      </div>
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
@@ -51,7 +55,7 @@ export function Login() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Music4 className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-xl">Backstage CV</CardTitle>
+          <CardTitle className="text-xl">CV Produções Artísticas</CardTitle>
           <CardDescription>
             Entre para gerenciar seus shows e propostas.
           </CardDescription>

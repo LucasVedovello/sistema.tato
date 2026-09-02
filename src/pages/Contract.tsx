@@ -61,8 +61,9 @@ export function Contract() {
   const contract = useMemo(() => {
     if (!show) return null;
     const vars: ContractVars = {
-      artista: show.artist_name,
-      contratante: show.clients?.name ?? "",
+      // Contrato leva o nome completo; o da ficha só entra como reserva.
+      artista: show.artist_full_name?.trim() || show.artist_name,
+      contratante: show.clients?.full_name?.trim() || show.clients?.name || "",
       contratanteDoc: show.clients?.document ?? "",
       contratanteEmail: show.clients?.email ?? "",
       contratanteTel: show.clients?.phone ?? "",

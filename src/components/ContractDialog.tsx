@@ -19,7 +19,7 @@ import {
   type ContractExtras,
 } from "@/lib/contracts";
 import { supabase } from "@/lib/supabase";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import type { Client, Show, ShowContract } from "@/types/database";
 
 /**
@@ -51,13 +51,14 @@ export function ContractDialog({
   const [error, setError] = useState<string | null>(null);
 
   // Cada abertura recomeça limpa — o diálogo fica montado entre um contrato e
-  // outro e herdaria a escolha anterior.
+  // outro e herdaria a escolha anterior. O horário vem preenchido com o do
+  // cadastro do show, e continua editável (o modelo aceita "23h às 01h").
   useEffect(() => {
     if (!open) return;
     setTemplateKey(null);
-    setExtras(emptyExtras);
+    setExtras({ ...emptyExtras, eventTime: formatTime(show.event_time) });
     setError(null);
-  }, [open]);
+  }, [open, show.event_time]);
 
   function update<K extends keyof ContractExtras>(
     key: K,
@@ -144,8 +145,11 @@ export function ContractDialog({
 
         <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Dados que serão inseridos</p>
+          {/* Os nomes mostrados aqui são os que vão para o documento: o
+              completo, com o da ficha como reserva. */}
           <p className="mt-1">
-            Artista: {show.artist_name} · Contratante: {client?.name ?? "—"} ·
+            Artista: {show.artist_full_name?.trim() || show.artist_name} ·
+            Contratante: {client?.full_name?.trim() || client?.name || "—"} ·
             Data: {formatDate(show.event_date)} · Local: {show.location ?? "—"} ·
             Valor: {formatCurrency(show.value_cents)}
           </p>
@@ -172,6 +176,7 @@ export function ContractDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="event_time">Horário da apresentação</Label>
+            {/* Preenchido com o horário do show; pode ser detalhado aqui. */}
             <Input
               id="event_time"
               value={extras.eventTime}

@@ -23,9 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PRODUCTION_ROLES } from "@/lib/production";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
-import { cn, formatCurrency, parseCurrencyToCents } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  parseCurrencyToCents,
+  toTimeInput,
+} from "@/lib/utils";
 import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
@@ -34,25 +40,32 @@ import {
 } from "@/types/database";
 
 interface FormState {
+  /** Nome da ficha (artístico) — o que aparece nas telas. */
   artist_name: string;
+  /** Nome completo — o único que sai no contrato. */
+  artist_full_name: string;
   client_id: string;
   event_date: string;
+  event_time: string;
   location: string;
   status: ShowStatus;
   value: string;
-  has_production: boolean;
+  /** Chaves de PRODUCTION_ROLES marcadas para este show. */
+  production_roles: string[];
   payment_terms: string;
   notes: string;
 }
 
 const emptyForm: FormState = {
   artist_name: "",
+  artist_full_name: "",
   client_id: "",
   event_date: "",
+  event_time: "",
   location: "",
   status: "criado",
   value: "",
-  has_production: false,
+  production_roles: [],
   payment_terms: "",
   notes: "",
 };
@@ -122,6 +135,16 @@ export function ShowForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  /** Liga/desliga uma função de produção, preservando as demais. */
+  function toggleProduction(key: string) {
+    setForm((prev) => ({
+      ...prev,
+      production_roles: prev.production_roles.includes(key)
+        ? prev.production_roles.filter((atual) => atual !== key)
+        : [...prev.production_roles, key],
+    }));
+  }
+
   useEffect(() => {
     supabase
       .from("clients")
@@ -147,12 +170,15 @@ export function ShowForm() {
         setInitialStatus(data.status);
         setForm({
           artist_name: data.artist_name,
+          artist_full_name: data.artist_full_name ?? "",
           client_id: data.client_id ?? "",
           event_date: data.event_date ?? "",
+          event_time: toTimeInput(data.event_time),
           location: data.location ?? "",
           status: data.status,
           value: data.value_cents ? String(data.value_cents / 100) : "",
-          has_production: data.has_production,
+          // Shows gravados antes da coluna existir voltam sem o campo.
+          production_roles: data.production_roles ?? [],
           payment_terms: data.payment_terms ?? "",
           notes: data.notes ?? "",
         });
@@ -171,12 +197,14 @@ export function ShowForm() {
 
     const payload = {
       artist_name: form.artist_name.trim(),
+      artist_full_name: form.artist_full_name.trim() || null,
       client_id: form.client_id || null,
       event_date: form.event_date || null,
+      event_time: form.event_time || null,
       location: form.location.trim() || null,
       status: form.status,
       value_cents: form.value ? parseCurrencyToCents(form.value) : null,
-      has_production: form.has_production,
+      production_roles: form.production_roles,
       payment_terms: form.payment_terms.trim() || null,
       notes: form.notes.trim() || null,
     };
@@ -259,7 +287,10 @@ export function ShowForm() {
       <div
         className={cn(
           isEditing &&
-            "grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+            // `min-w-0` nos itens: sem isso o grid respeita a largura mínima
+            // do conteúdo (um botão com whitespace-nowrap, por exemplo) e a
+            // página inteira passa a rolar na horizontal no celular.
+            "grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
         )}
       >
         <Card>
@@ -280,15 +311,37 @@ export function ShowForm() {
           </CardHeader>
           <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="artist_name">Artista *</Label>
-              <Input
-                id="artist_name"
-                value={form.artist_name}
-                onChange={(e) => update("artist_name", e.target.value)}
-                placeholder="Nome do artista/banda"
-                required
-              />
+            {/* Dois nomes de propósito: o curto é o que circula no dia a dia
+                (Kanban, calendário, ficha técnica) e o completo é o único que
+                entra no contrato. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="artist_name">Nome da ficha (artista) *</Label>
+                <Input
+                  id="artist_name"
+                  value={form.artist_name}
+                  onChange={(e) => update("artist_name", e.target.value)}
+                  placeholder="Nome artístico / da banda"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aparece nas telas e na ficha técnica.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="artist_full_name">Nome completo</Label>
+                <Input
+                  id="artist_full_name"
+                  value={form.artist_full_name}
+                  onChange={(e) => update("artist_full_name", e.target.value)}
+                  placeholder="Nome civil completo"
+                />
+                <p className="text-xs text-muted-foreground">
+                  É este que sai no contrato. Em branco, o contrato usa o nome
+                  da ficha.
+                </p>
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -352,7 +405,7 @@ export function ShowForm() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="event_date">Data do evento</Label>
                 <Input
@@ -360,6 +413,16 @@ export function ShowForm() {
                   type="date"
                   value={form.event_date}
                   onChange={(e) => update("event_date", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="event_time">Horário</Label>
+                <Input
+                  id="event_time"
+                  type="time"
+                  value={form.event_time}
+                  onChange={(e) => update("event_time", e.target.value)}
                 />
               </div>
 
@@ -390,32 +453,50 @@ export function ShowForm() {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="has_production">Terá produção?</Label>
-                <Select
-                  value={form.has_production ? "sim" : "nao"}
-                  onValueChange={(v) => update("has_production", v === "sim")}
-                >
-                  <SelectTrigger id="has_production">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sim">Sim</SelectItem>
-                    <SelectItem value="nao">Não</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Produção deixou de ser sim/não: um show pode ter várias
+                funções ao mesmo tempo, e é isso que vai para a planilha. */}
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium leading-none">
+                Produção
+              </legend>
+              <p className="text-xs text-muted-foreground">
+                Marque tudo o que este show inclui. Pode ser mais de uma opção.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PRODUCTION_ROLES.map((role) => {
+                  const marcado = form.production_roles.includes(role.key);
+                  return (
+                    <label
+                      key={role.key}
+                      className={cn(
+                        // min-h-11: alvo de toque confortável no celular.
+                        "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md border px-3 text-sm transition-colors",
+                        marcado
+                          ? "border-primary bg-primary/5 font-medium"
+                          : "border-border hover:bg-accent"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 accent-primary"
+                        checked={marcado}
+                        onChange={() => toggleProduction(role.key)}
+                      />
+                      {role.label}
+                    </label>
+                  );
+                })}
               </div>
+            </fieldset>
 
-              <div className="space-y-2">
-                <Label htmlFor="payment_terms">Forma de pagamento</Label>
-                <Input
-                  id="payment_terms"
-                  value={form.payment_terms}
-                  onChange={(e) => update("payment_terms", e.target.value)}
-                  placeholder="50% na assinatura e 50% no dia"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment_terms">Forma de pagamento</Label>
+              <Input
+                id="payment_terms"
+                value={form.payment_terms}
+                onChange={(e) => update("payment_terms", e.target.value)}
+                placeholder="50% na assinatura e 50% no dia"
+              />
             </div>
 
             <div className="space-y-2">

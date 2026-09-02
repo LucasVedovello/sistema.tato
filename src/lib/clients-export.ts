@@ -6,6 +6,7 @@ import type { ClientWithShowCount } from "@/types/database";
 
 interface ClientRow {
   name: string;
+  fullName: string;
   phone: string;
   email: string;
   document: string;
@@ -15,8 +16,13 @@ interface ClientRow {
 
 const COLUNAS: Column<ClientRow>[] = [
   {
-    header: { value: "Nome", ...CABECALHO },
+    header: { value: "Nome da ficha", ...CABECALHO },
     cell: (row) => ({ type: String, value: row.name }),
+    width: 32,
+  },
+  {
+    header: { value: "Nome completo", ...CABECALHO },
+    cell: (row) => ({ type: String, value: row.fullName }),
     width: 32,
   },
   {
@@ -63,6 +69,7 @@ export async function exportClientsToExcel(): Promise<number> {
   const rows = ((data as unknown as ClientWithShowCount[]) ?? []).map(
     (client): ClientRow => ({
       name: client.name,
+      fullName: client.full_name ?? "",
       phone: client.phone ?? "",
       email: client.email ?? "",
       document: client.document ?? "",

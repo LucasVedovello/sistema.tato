@@ -2,9 +2,34 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Backstage CV — CRM de Shows</title>
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- viewport-fit=cover deixa o app usar a tela toda em aparelhos com
+         entalhe; o padding do safe-area cuida de não esconder nada. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>CV Produções Artísticas — CRM de Shows</title>
+
+    <!-- PWA: instalável pelo "Adicionar à tela inicial" do Chrome/Safari. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="application-name" content="CV Produções Artísticas" />
+    <meta name="apple-mobile-web-app-title" content="CV Produções" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- A cor da barra do sistema acompanha o tema escolhido. -->
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content="#ffffff"
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#0f172a"
+    />
     <script>
       // Aplica o tema ANTES do React montar, senão a tela pisca em branco
       // durante o carregamento. A chave é a mesma de src/context/ThemeContext.tsx

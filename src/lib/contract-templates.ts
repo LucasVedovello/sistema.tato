@@ -114,7 +114,9 @@ export const signatureField = (party: "client" | "office"): SignatureField =>
 
 /** Dados do show/cliente que entram no overlay. */
 export interface ContractData {
+  /** Nome COMPLETO do artista (o da ficha não entra em contrato). */
   artist: string;
+  /** Nome COMPLETO do contratante. */
   clientName: string;
   clientDocument: string;
   clientPhone: string;
@@ -172,15 +174,15 @@ function remuneracao(
   const total = d.valueCents;
   const forma = d.paymentTerms.trim()
     ? `a ser pago da seguinte forma: ${d.paymentTerms.trim()}, ${opts.conta}`
-    : `a ser pago 30% (equivalente a ${dinheiro(parte(total, 0.3))}) na ` +
-      `assinatura do contrato e o restante 70% (igual a ${dinheiro(
-        parte(total, 0.7)
-      )}) ${opts.quando}, ${opts.conta}`;
+    : `a ser pago da seguinte forma: 30% (equivalentes a ` +
+      `${dinheiro(parte(total, 0.3))}) na assinatura do contrato e os 70% ` +
+      `restantes (equivalentes a ${dinheiro(parte(total, 0.7))}) ` +
+      `${opts.quando}, ${opts.conta}`;
 
   return (
     `**2.1 -** O CONTRATANTE pagará ao CONTRATADO o valor de ${dinheiro(total)} ` +
-    `(${extenso(total)}) ${forma}. Segue CNPJ para realizar a transferência: ` +
-    `${opts.cnpj} ${opts.banco}.`
+    `(${extenso(total)}), ${forma}. Segue o CNPJ para a realização da ` +
+    `transferência: ${opts.cnpj} — ${opts.banco}.`
   );
 }
 
@@ -188,11 +190,11 @@ function remuneracao(
 function multa(d: ContractData): string {
   const metade = parte(d.valueCents, 0.5);
   return (
-    "**4.1 -** O presente contrato terá vigência desde sua assinatura até o " +
-    "cumprimento integral das obrigações aqui estabelecidas. Em caso de " +
+    "**4.1 -** O presente contrato terá vigência a partir de sua assinatura até " +
+    "o cumprimento integral das obrigações aqui estabelecidas. Em caso de " +
     "rescisão por iniciativa do **CONTRATANTE ou do CONTRATADO**, será aplicada " +
-    `uma multa referente a 50% do valor do show, ${dinheiro(metade)} ` +
-    `(${extenso(metade)}).`
+    `multa correspondente a 50% do valor do show, equivalente a ` +
+    `${dinheiro(metade)} (${extenso(metade)}).`
   );
 }
 
@@ -238,10 +240,9 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             justify: true,
             text:
               `O presente contrato tem por objeto a contratação do show do ` +
-              `artista ${ou(d.artist)} na data de ${
+              `artista ${ou(d.artist)}, a ser realizado na data de ${
                 d.eventDate ? formatDate(d.eventDate) : "__/__/____"
-              }, sendo contratado para realizar a apresentação em ${local}, ` +
-              `no horário ${ou(d.eventTime, "a combinar")}.`,
+              }, em ${local}, no horário ${ou(d.eventTime, "a combinar")}.`,
           },
           {
             box: BOXES.remuneracao,
@@ -291,59 +292,68 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
         "Artistas contratados via escritório Cv.produção.artistica.",
       path: "contrato-base-producao.pdf.pdf",
       office: "Cv.produção.artistica",
-      overlay: (d) => [
-        { box: BOXES.contratante, text: contratante(d), redact: true },
-        {
-          box: BOXES.objeto,
-          redact: true,
-          justify: true,
-          text:
-            `O presente contrato tem por objeto a contratação dos artistas, ` +
-            `via o escritório Cv.produção.artistica, na data de ${
-              d.eventDate ? formatDate(d.eventDate) : "__/__/____"
-            }, sendo contratado para realizar a apresentação no ${ou(
-              d.eventName.trim() || d.location
-            )}, das ${ou(d.eventTime, "a combinar")} no ${ou(d.location)}. ` +
-            `Artista(s): ${ou(d.artist)}.`,
-        },
-        {
-          box: BOXES.remuneracao,
-          redact: true,
-          justify: true,
-          text: remuneracao(d, {
-            quando:
-              "antes do início das apresentações ou logo após o encerramento " +
-              "da apresentação",
-            conta: "na conta PJ do escritório",
-            cnpj: "59.690.383/0001-10",
-            banco: "Inter Empresas",
-          }),
-        },
-        {
-          box: BOXES.multa,
-          redact: true,
-          justify: true,
-          text: multa(d),
-        },
-        {
-          box: BOXES.localData,
-          redact: true,
-          text: `obriga as partes, seus herdeiros e sucessores. ${ou(
-            d.city,
-            "Paulínia"
-          )}, ${longDate(d.signedOn)}.`,
-        },
-        {
-          box: BOXES.rotuloContratado,
-          redact: true,
-          text: "Cv.produção.artistica – CONTRATADO",
-        },
-        {
-          box: BOXES.rotuloContratante,
-          redact: true,
-          text: `${ou(d.clientName)} – CONTRATANTE`,
-        },
-      ],
+      overlay: (d) => {
+        // O nome do evento é opcional: sem ele a frase vai direto ao local, em
+        // vez de repetir o mesmo endereço como evento E como local.
+        const evento = d.eventName.trim()
+          ? `no evento ${d.eventName.trim()}, `
+          : "";
+
+        return [
+          { box: BOXES.contratante, text: contratante(d), redact: true },
+          {
+            box: BOXES.objeto,
+            redact: true,
+            justify: true,
+            text:
+              `O presente contrato tem por objeto a contratação de artistas, ` +
+              `por meio do escritório Cv.produção.artistica, para ` +
+              `apresentação na data de ${
+                d.eventDate ? formatDate(d.eventDate) : "__/__/____"
+              }, ${evento}em ${ou(d.location)}, no horário ${ou(
+                d.eventTime,
+                "a combinar"
+              )}. Artista(s): ${ou(d.artist)}.`,
+          },
+          {
+            box: BOXES.remuneracao,
+            redact: true,
+            justify: true,
+            text: remuneracao(d, {
+              quando:
+                "antes do início das apresentações ou logo após o encerramento " +
+                "da apresentação",
+              conta: "na conta PJ do escritório",
+              cnpj: "59.690.383/0001-10",
+              banco: "Inter Empresas",
+            }),
+          },
+          {
+            box: BOXES.multa,
+            redact: true,
+            justify: true,
+            text: multa(d),
+          },
+          {
+            box: BOXES.localData,
+            redact: true,
+            text: `obriga as partes, seus herdeiros e sucessores. ${ou(
+              d.city,
+              "Paulínia"
+            )}, ${longDate(d.signedOn)}.`,
+          },
+          {
+            box: BOXES.rotuloContratado,
+            redact: true,
+            text: "Cv.produção.artistica – CONTRATADO",
+          },
+          {
+            box: BOXES.rotuloContratante,
+            redact: true,
+            text: `${ou(d.clientName)} – CONTRATANTE`,
+          },
+        ];
+      },
     },
   };
 

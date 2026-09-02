@@ -1,7 +1,9 @@
 import type { Column } from "write-excel-file/browser";
 
 import { CABECALHO, MOEDA, hojeSufixo, salvarPlanilha, toUtcDate } from "@/lib/excel";
+import { productionSummary } from "@/lib/production";
 import { supabase } from "@/lib/supabase";
+import { formatTime, toDateOnly } from "@/lib/utils";
 import { SHOW_STATUS_LABELS, type ShowWithClient } from "@/types/database";
 
 /**
@@ -11,6 +13,8 @@ import { SHOW_STATUS_LABELS, type ShowWithClient } from "@/types/database";
 interface ExportRow {
   artist: string;
   eventDate: Date | null;
+  /** "20:30" — texto, porque o que interessa é ler, não calcular com a hora. */
+  eventTime: string;
   client: string;
   value: number | null;
   production: string;
@@ -40,6 +44,11 @@ const COLUNAS: Column<ExportRow>[] = [
     width: 14,
   },
   {
+    header: { value: "Horário", ...CABECALHO },
+    cell: (row) => ({ type: String, value: row.eventTime }),
+    width: 10,
+  },
+  {
     header: { value: "Cliente", ...CABECALHO },
     cell: (row) => ({ type: String, value: row.client }),
     width: 30,
@@ -52,9 +61,11 @@ const COLUNAS: Column<ExportRow>[] = [
     width: 16,
   },
   {
-    header: { value: "Terá produção", ...CABECALHO },
+    // Uma coluna só, com as funções separadas por vírgula: uma coluna por
+    // função encheria a planilha de "Não" e quebraria a cada opção nova.
+    header: { value: "Produção", ...CABECALHO },
     cell: (row) => ({ type: String, value: row.production }),
-    width: 15,
+    width: 38,
   },
   {
     header: { value: "Local", ...CABECALHO },
@@ -72,9 +83,10 @@ function toRow(show: ShowWithClient): ExportRow {
   return {
     artist: show.artist_name,
     eventDate: show.event_date ? toUtcDate(show.event_date) : null,
+    eventTime: formatTime(show.event_time),
     client: show.clients?.name ?? "",
     value: show.value_cents == null ? null : show.value_cents / 100,
-    production: show.has_production ? "Sim" : "Não",
+    production: productionSummary(show.production_roles),
     location: show.location ?? "",
     status: SHOW_STATUS_LABELS[show.status],
   };
@@ -117,6 +129,27 @@ export async function exportClosedShowsToExcel(): Promise<number> {
     COLUNAS,
     "Shows fechados",
     `shows-fechados-${hojeSufixo()}.xlsx`
+  );
+}
+
+/**
+ * Planilha dos shows já realizados — a aba "Realizados" do dashboard.
+ *
+ * O recorte é o mesmo da tela: data do evento anterior a hoje e cancelados de
+ * fora (a data passou, mas o show não aconteceu).
+ */
+export async function exportRealizedShowsToExcel(): Promise<number> {
+  const { data, error } = await consultaShows()
+    .lt("event_date", toDateOnly(new Date()))
+    .neq("status", "cancelado")
+    .order("event_date", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  return salvarPlanilha(
+    ((data as ShowWithClient[]) ?? []).map(toRow),
+    COLUNAS,
+    "Realizados",
+    `shows-realizados-${hojeSufixo()}.xlsx`
   );
 }
 
