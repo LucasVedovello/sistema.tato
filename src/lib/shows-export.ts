@@ -3,7 +3,7 @@ import type { Column } from "write-excel-file/browser";
 import { CABECALHO, MOEDA, hojeSufixo, salvarPlanilha, toUtcDate } from "@/lib/excel";
 import { productionSummary } from "@/lib/production";
 import { supabase } from "@/lib/supabase";
-import { formatTime } from "@/lib/utils";
+import { formatHora } from "@/lib/format";
 import { SHOW_STATUS_LABELS, type ShowWithClient } from "@/types/database";
 
 /**
@@ -83,7 +83,7 @@ function toRow(show: ShowWithClient): ExportRow {
   return {
     artist: show.artist_name,
     eventDate: show.event_date ? toUtcDate(show.event_date) : null,
-    eventTime: formatTime(show.event_time),
+    eventTime: formatHora(show.event_time),
     client: show.clients?.name ?? "",
     value: show.value_cents == null ? null : show.value_cents / 100,
     production: productionSummary(show.production_roles),

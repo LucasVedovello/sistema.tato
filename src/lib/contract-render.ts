@@ -102,18 +102,42 @@ type Token = { text: string; bold: boolean };
 
 /**
  * Quebra o texto em palavras, marcando as que estão entre `**` como negrito —
- * é assim que o overlay reproduz os destaques do modelo ("**2.1 -**",
- * "**CONTRATANTE:**").
+ * é assim que o overlay reproduz os destaques do modelo ("**CONTRATANTE:**").
+ *
+ * A varredura é caractere a caractere, e não um `split("**")`, porque a
+ * marcação quase nunca cai numa fronteira de palavra: em
+ * "do **CONTRATADO**." o ponto final pertence à MESMA palavra que o negrito
+ * fecha. Separando por segmentos, ele virava uma palavra sozinha e o documento
+ * saía com "do CONTRATADO ." — espaço antes da pontuação.
+ *
+ * A palavra inteira herda o peso da sua primeira letra; a diferença é
+ * invisível para vírgula, ponto e parêntese, que é o caso real.
  */
 function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
-  // Segmentos alternados: fora de **, dentro de **, fora, ...
-  text.split("**").forEach((segment, index) => {
-    const bold = index % 2 === 1;
-    for (const word of segment.split(/\s+/)) {
-      if (word) tokens.push({ text: word, bold });
+  let negritoAtual = false;
+  let palavra = "";
+  let palavraNegrito = false;
+
+  const fechar = () => {
+    if (palavra) tokens.push({ text: palavra, bold: palavraNegrito });
+    palavra = "";
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "*" && text[i + 1] === "*") {
+      negritoAtual = !negritoAtual;
+      i++;
+      continue;
     }
-  });
+    if (/\s/.test(text[i])) {
+      fechar();
+      continue;
+    }
+    if (!palavra) palavraNegrito = negritoAtual;
+    palavra += text[i];
+  }
+  fechar();
   return tokens;
 }
 

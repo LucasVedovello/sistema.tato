@@ -5,7 +5,8 @@ import { AlertTriangle, CalendarClock, ListChecks } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { isDueToday, isOverdue } from "@/lib/tasks";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData } from "@/lib/format";
 import type { ShowTaskWithShow } from "@/types/database";
 
 /** Quantas tarefas urgentes listar antes de resumir com "+N". */
@@ -100,7 +101,7 @@ export function TasksSummary() {
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {task.shows?.artist_name ?? "show removido"} ·{" "}
-                    {formatDate(task.due_date)}
+                    {formatData(task.due_date)}
                   </span>
                 </Link>
               </li>

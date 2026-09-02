@@ -34,7 +34,8 @@ import {
   type ColunaKanban,
 } from "@/lib/status";
 import { useIsMobile } from "@/lib/use-media-query";
-import { cn, formatCurrency, formatDate, formatTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData, formatHora, formatMoeda } from "@/lib/format";
 import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
@@ -59,7 +60,7 @@ function ShowCardBody({
   /** Desliga a alça de arrasto nos cards que não se arrastam. */
   arrastavel?: boolean;
 }) {
-  const hora = formatTime(show.event_time);
+  const hora = formatHora(show.event_time);
 
   return (
     <>
@@ -87,7 +88,7 @@ function ShowCardBody({
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <CalendarDays className="h-3.5 w-3.5" />
-          {formatDate(show.event_date)}
+          {formatData(show.event_date)}
         </div>
         {show.location && (
           <div className="flex items-center gap-1.5">
@@ -104,7 +105,7 @@ function ShowCardBody({
         )}
       </div>
       <p className="mt-3 text-sm font-semibold">
-        {formatCurrency(show.value_cents)}
+        {formatMoeda(show.value_cents)}
       </p>
     </>
   );
@@ -323,7 +324,7 @@ function ColumnShell({
       </div>
 
       <p className="mb-2 text-xs text-muted-foreground">
-        {formatCurrency(total)}
+        {formatMoeda(total)}
       </p>
 
       {children}
@@ -496,7 +497,7 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
 
           <p className="mb-3 text-sm text-muted-foreground">
             {grouped[abaAtiva].length} show(s) ·{" "}
-            {formatCurrency(
+            {formatMoeda(
               grouped[abaAtiva].reduce((soma, s) => soma + (s.value_cents ?? 0), 0)
             )}
           </p>

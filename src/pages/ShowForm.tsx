@@ -26,12 +26,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { PRODUCTION_ROLES } from "@/lib/production";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
+import { cn } from "@/lib/utils";
 import {
-  cn,
-  formatCurrency,
-  parseCurrencyToCents,
-  toTimeInput,
-} from "@/lib/utils";
+  centavosParaMoeda,
+  dataValida,
+  formatHora,
+  formatMoeda,
+  horaValida,
+  maskMoeda,
+  moedaParaCentavos,
+  normalizarTexto,
+  titleCase,
+} from "@/lib/format";
 import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
@@ -89,6 +95,10 @@ export function ShowForm() {
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
   /** Status com que o show foi carregado, para detectar a virada p/ "fechado". */
   const [initialStatus, setInitialStatus] = useState<ShowStatus | null>(null);
+  /** Erros de validação por campo, mostrados abaixo de cada um. */
+  const [erros, setErros] = useState<Partial<Record<keyof FormState, string>>>(
+    {}
+  );
 
   /**
    * Cliente recém-cadastrado pelo diálogo: entra na lista (mantendo a ordem
@@ -135,6 +145,31 @@ export function ShowForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  /**
+   * Normaliza um nome próprio quando o campo perde o foco.
+   *
+   * No blur, e não a cada tecla: corrigir a caixa no meio da digitação move o
+   * cursor e atrapalha quem está escrevendo.
+   */
+  function normalizarNome(key: "artist_name" | "artist_full_name" | "location") {
+    setForm((prev) => ({ ...prev, [key]: titleCase(prev[key]) }));
+  }
+
+  /** Valida o formulário inteiro; devolve os erros encontrados. */
+  function validar(atual: FormState) {
+    const novos: Partial<Record<keyof FormState, string>> = {};
+    if (!normalizarTexto(atual.artist_name)) {
+      novos.artist_name = "Informe o nome da ficha do artista.";
+    }
+    if (atual.event_date && !dataValida(atual.event_date)) {
+      novos.event_date = "Data inválida.";
+    }
+    if (atual.event_time && !horaValida(atual.event_time)) {
+      novos.event_time = "Horário inválido (use HH:MM).";
+    }
+    return novos;
+  }
+
   /** Liga/desliga uma função de produção, preservando as demais. */
   function toggleProduction(key: string) {
     setForm((prev) => ({
@@ -173,10 +208,10 @@ export function ShowForm() {
           artist_full_name: data.artist_full_name ?? "",
           client_id: data.client_id ?? "",
           event_date: data.event_date ?? "",
-          event_time: toTimeInput(data.event_time),
+          event_time: formatHora(data.event_time),
           location: data.location ?? "",
           status: data.status,
-          value: data.value_cents ? String(data.value_cents / 100) : "",
+          value: centavosParaMoeda(data.value_cents),
           // Shows gravados antes da coluna existir voltam sem o campo.
           production_roles: data.production_roles ?? [],
           payment_terms: data.payment_terms ?? "",
@@ -192,21 +227,37 @@ export function ShowForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+
+    // Os textos livres vão para o banco já normalizados (sem espaço sobrando,
+    // com a caixa arrumada): é o que o contrato vai imprimir.
+    const limpo: FormState = {
+      ...form,
+      artist_name: titleCase(form.artist_name),
+      artist_full_name: titleCase(form.artist_full_name),
+      location: titleCase(form.location),
+      payment_terms: normalizarTexto(form.payment_terms),
+      notes: form.notes.trim(),
+    };
+    const novosErros = validar(limpo);
+    setForm(limpo);
+    setErros(novosErros);
+    if (Object.keys(novosErros).length > 0) return;
+
     setSaving(true);
     setError(null);
 
     const payload = {
-      artist_name: form.artist_name.trim(),
-      artist_full_name: form.artist_full_name.trim() || null,
-      client_id: form.client_id || null,
-      event_date: form.event_date || null,
-      event_time: form.event_time || null,
-      location: form.location.trim() || null,
-      status: form.status,
-      value_cents: form.value ? parseCurrencyToCents(form.value) : null,
-      production_roles: form.production_roles,
-      payment_terms: form.payment_terms.trim() || null,
-      notes: form.notes.trim() || null,
+      artist_name: limpo.artist_name,
+      artist_full_name: limpo.artist_full_name || null,
+      client_id: limpo.client_id || null,
+      event_date: limpo.event_date || null,
+      event_time: limpo.event_time || null,
+      location: limpo.location || null,
+      status: limpo.status,
+      value_cents: limpo.value ? moedaParaCentavos(limpo.value) : null,
+      production_roles: limpo.production_roles,
+      payment_terms: limpo.payment_terms || null,
+      notes: limpo.notes || null,
     };
 
     // .select("id").single() para saber o id também no cadastro novo — ele é
@@ -230,7 +281,7 @@ export function ShowForm() {
     // Virou "fechado" agora? Segue direto para o contrato.
     const savedId = data?.id ?? id;
     const acabouDeFechar =
-      form.status === "fechado" && initialStatus !== "fechado";
+      limpo.status === "fechado" && initialStatus !== "fechado";
 
     // Show fechado é show que vira contrato: em vez do dashboard, a ficha —
     // com o card de contratos à vista.
@@ -321,12 +372,20 @@ export function ShowForm() {
                   id="artist_name"
                   value={form.artist_name}
                   onChange={(e) => update("artist_name", e.target.value)}
+                  onBlur={() => normalizarNome("artist_name")}
                   placeholder="Nome artístico / da banda"
+                  aria-invalid={Boolean(erros.artist_name)}
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  Aparece nas telas e na ficha técnica.
-                </p>
+                {erros.artist_name ? (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.artist_name}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Aparece nas telas e na ficha técnica.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -335,6 +394,7 @@ export function ShowForm() {
                   id="artist_full_name"
                   value={form.artist_full_name}
                   onChange={(e) => update("artist_full_name", e.target.value)}
+                  onBlur={() => normalizarNome("artist_full_name")}
                   placeholder="Nome civil completo"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -408,12 +468,21 @@ export function ShowForm() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="event_date">Data do evento</Label>
+                {/* type="date"/"time": o próprio navegador já entrega
+                    "AAAA-MM-DD" e "HH:MM" (e mostra no formato do país), então
+                    a máscara aqui seria um passo a mais para errar. */}
                 <Input
                   id="event_date"
                   type="date"
                   value={form.event_date}
                   onChange={(e) => update("event_date", e.target.value)}
+                  aria-invalid={Boolean(erros.event_date)}
                 />
+                {erros.event_date && (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.event_date}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -423,21 +492,36 @@ export function ShowForm() {
                   type="time"
                   value={form.event_time}
                   onChange={(e) => update("event_time", e.target.value)}
+                  aria-invalid={Boolean(erros.event_time)}
                 />
+                {erros.event_time && (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.event_time}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="value">Valor (R$)</Label>
-                <Input
-                  id="value"
-                  inputMode="decimal"
-                  value={form.value}
-                  onChange={(e) => update("value", e.target.value)}
-                  placeholder="0,00"
-                />
+                <Label htmlFor="value">Valor</Label>
+                {/* O "R$" é fixo à esquerda e o campo recebe só os centavos
+                    digitados, já pontuados — assim o valor entra no banco
+                    sempre como número, e sai no contrato sempre igual. */}
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    R$
+                  </span>
+                  <Input
+                    id="value"
+                    inputMode="numeric"
+                    className="pl-9"
+                    value={form.value}
+                    onChange={(e) => update("value", maskMoeda(e.target.value))}
+                    placeholder="0,00"
+                  />
+                </div>
                 {form.value && (
                   <p className="text-xs text-muted-foreground">
-                    {formatCurrency(parseCurrencyToCents(form.value))}
+                    {formatMoeda(moedaParaCentavos(form.value))}
                   </p>
                 )}
               </div>
@@ -449,8 +533,13 @@ export function ShowForm() {
                 id="location"
                 value={form.location}
                 onChange={(e) => update("location", e.target.value)}
-                placeholder="Cidade / casa de show"
+                onBlur={() => normalizarNome("location")}
+                placeholder="Casa de show / arena"
               />
+              <p className="text-xs text-muted-foreground">
+                Onde o show acontece. No contrato entra como local da
+                apresentação.
+              </p>
             </div>
 
             {/* Produção deixou de ser sim/não: um show pode ter várias

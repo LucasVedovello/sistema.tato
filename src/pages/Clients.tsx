@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Mail, Pencil, Phone, Plus, Search, Trash2, Users } from "lucide-react";
+import {
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+} from "lucide-react";
 
 import { ClientFormDialog } from "@/components/ClientFormDialog";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
@@ -7,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { exportClientsToExcel } from "@/lib/clients-export";
+import { formatEndereco, formatTelefone } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import type { Client, ClientWithShowCount } from "@/types/database";
 
@@ -38,7 +48,7 @@ export function Clients() {
     const term = search.trim().toLowerCase();
     if (!term) return clients;
     return clients.filter((c) =>
-      [c.name, c.full_name, c.phone, c.email]
+      [c.name, c.full_name, c.phone, c.email, c.cidade]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(term))
     );
@@ -149,7 +159,7 @@ export function Clients() {
                     {client.phone && (
                       <span className="flex items-center gap-1.5">
                         <Phone className="h-3.5 w-3.5" />
-                        {client.phone}
+                        {formatTelefone(client.phone)}
                       </span>
                     )}
                     {client.email && (
@@ -159,6 +169,12 @@ export function Clients() {
                       </span>
                     )}
                   </div>
+                  {formatEndereco(client) && (
+                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{formatEndereco(client)}</span>
+                    </p>
+                  )}
                   {client.notes && (
                     <p className="whitespace-pre-line text-sm text-muted-foreground">
                       {client.notes}

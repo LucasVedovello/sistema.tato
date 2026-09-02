@@ -30,7 +30,8 @@ import {
   STATUS_META,
 } from "@/lib/contracts";
 import { supabase } from "@/lib/supabase";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData } from "@/lib/format";
 import type { Show, ShowContract } from "@/types/database";
 
 /**
@@ -231,7 +232,7 @@ export function ContractDetail() {
             </p>
             <p>
               <span className="text-foreground">Data do evento:</span>{" "}
-              {formatDate(show?.event_date)}
+              {formatData(show?.event_date)}
             </p>
             <p>
               <span className="text-foreground">Contratado:</span>{" "}

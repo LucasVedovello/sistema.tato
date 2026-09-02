@@ -9,7 +9,12 @@ import { Label } from "@/components/ui/label";
 import { contractFileName, downloadContractPdf } from "@/lib/contract-pdf";
 import { renderContract, type ContractVars } from "@/lib/contract-template";
 import { supabase } from "@/lib/supabase";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  formatData,
+  formatDocumento,
+  formatMoeda,
+  formatTelefone,
+} from "@/lib/format";
 import type { Client, Show } from "@/types/database";
 
 type ShowWithFullClient = Show & { clients: Client | null };
@@ -64,12 +69,13 @@ export function Contract() {
       // Contrato leva o nome completo; o da ficha só entra como reserva.
       artista: show.artist_full_name?.trim() || show.artist_name,
       contratante: show.clients?.full_name?.trim() || show.clients?.name || "",
-      contratanteDoc: show.clients?.document ?? "",
+      // Mesmas funções do formulário e do contrato em PDF.
+      contratanteDoc: formatDocumento(show.clients?.document),
       contratanteEmail: show.clients?.email ?? "",
-      contratanteTel: show.clients?.phone ?? "",
-      dataEvento: show.event_date ? formatDate(show.event_date) : "",
+      contratanteTel: formatTelefone(show.clients?.phone),
+      dataEvento: show.event_date ? formatData(show.event_date) : "",
       local: show.location ?? "",
-      valor: show.value_cents != null ? formatCurrency(show.value_cents) : "",
+      valor: show.value_cents != null ? formatMoeda(show.value_cents) : "",
       formaPagamento: paymentTerms,
       cidade: city,
       dataAssinatura: LONG_DATE.format(new Date()),

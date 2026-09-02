@@ -2,7 +2,7 @@
  * Regras de leitura de um show que não são nem tela nem banco.
  */
 
-import { parseDateOnly } from "@/lib/utils";
+import { parseDateOnly } from "@/lib/format";
 import type { Show } from "@/types/database";
 
 /** O mínimo para decidir se um show já aconteceu. */

@@ -1,6 +1,11 @@
 import type { Column } from "write-excel-file/browser";
 
 import { CABECALHO, hojeSufixo, salvarPlanilha } from "@/lib/excel";
+import {
+  formatDocumento,
+  formatEndereco,
+  formatTelefone,
+} from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import type { ClientWithShowCount } from "@/types/database";
 
@@ -10,6 +15,8 @@ interface ClientRow {
   phone: string;
   email: string;
   document: string;
+  /** Endereço já montado no formato do contrato. */
+  address: string;
   shows: number;
   notes: string;
 }
@@ -42,6 +49,11 @@ const COLUNAS: Column<ClientRow>[] = [
     width: 20,
   },
   {
+    header: { value: "Endereço", ...CABECALHO },
+    cell: (row) => ({ type: String, value: row.address }),
+    width: 52,
+  },
+  {
     header: { value: "Shows vinculados", ...CABECALHO },
     cell: (row) => ({ type: Number, value: row.shows }),
     width: 17,
@@ -70,9 +82,12 @@ export async function exportClientsToExcel(): Promise<number> {
     (client): ClientRow => ({
       name: client.name,
       fullName: client.full_name ?? "",
-      phone: client.phone ?? "",
+      // Mesmas funções da tela e do contrato: a planilha não inventa
+      // formato próprio.
+      phone: formatTelefone(client.phone),
       email: client.email ?? "",
-      document: client.document ?? "",
+      document: formatDocumento(client.document),
+      address: formatEndereco(client),
       shows: client.shows?.[0]?.count ?? 0,
       notes: client.notes ?? "",
     })

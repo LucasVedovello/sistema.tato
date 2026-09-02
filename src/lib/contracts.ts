@@ -20,7 +20,12 @@ import {
 } from "@/lib/contract-render";
 import { supabase } from "@/lib/supabase";
 import { contractFileName } from "@/lib/contract-pdf";
-import { formatTime } from "@/lib/utils";
+import {
+  formatDocumento,
+  formatEndereco,
+  formatHora,
+  formatTelefone,
+} from "@/lib/format";
 import type {
   Client,
   ContractStatus,
@@ -144,16 +149,20 @@ export function deadlineInfo(contract: {
   };
 }
 
-/** Campos que o modelo pede e o cadastro do show não tem. */
+/**
+ * Campos que o modelo pede e o cadastro do show não tem.
+ *
+ * O endereço do contratante saiu daqui: ele agora vem do cadastro do cliente,
+ * em campos separados, e é montado sempre pelo mesmo `formatEndereco`. Digitado
+ * à mão a cada emissão, ele saía diferente em cada contrato.
+ */
 export interface ContractExtras {
-  clientAddress: string;
   eventName: string;
   eventTime: string;
   city: string;
 }
 
 export const emptyExtras: ContractExtras = {
-  clientAddress: "",
   eventName: "",
   eventTime: "",
   city: "Paulínia",
@@ -165,6 +174,10 @@ export const emptyExtras: ContractExtras = {
  * Nomes: o contrato leva SEMPRE o nome completo; o nome da ficha (artístico,
  * curto) fica nas telas. Sem nome completo cadastrado a lacuna seria pior que
  * o nome curto, então ele entra como reserva.
+ *
+ * Documento, telefone e endereço passam pelas funções de `lib/format` — as
+ * mesmas do formulário e das planilhas —, então o contrato imprime exatamente
+ * o que a ficha do cliente mostra.
  *
  * Horário: o do cadastro do show é o padrão, e o campo avulso do diálogo
  * continua podendo sobrescrevê-lo — ele aceita formas que a coluna `time` não
@@ -178,12 +191,12 @@ export function buildContractData(
   return {
     artist: show.artist_full_name?.trim() || show.artist_name,
     clientName: client?.full_name?.trim() || client?.name || "",
-    clientDocument: client?.document ?? "",
-    clientPhone: client?.phone ?? "",
-    clientAddress: extras.clientAddress,
+    clientDocument: formatDocumento(client?.document),
+    clientPhone: formatTelefone(client?.phone),
+    clientAddress: client ? formatEndereco(client) : "",
     eventName: extras.eventName,
     eventDate: show.event_date,
-    eventTime: extras.eventTime.trim() || formatTime(show.event_time),
+    eventTime: extras.eventTime.trim() || formatHora(show.event_time),
     location: show.location ?? "",
     valueCents: show.value_cents,
     paymentTerms: show.payment_terms ?? "",

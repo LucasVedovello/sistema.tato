@@ -8,7 +8,7 @@
 
 import type { Column, SheetData } from "write-excel-file/browser";
 
-import { parseDateOnly, toDateOnly } from "@/lib/utils";
+import { parseDateOnly, toDateOnly } from "@/lib/format";
 
 /** Estilo do cabeçalho, igual em todas as planilhas. */
 export const CABECALHO = { fontWeight: "bold" } as const;

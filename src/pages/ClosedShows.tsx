@@ -6,7 +6,7 @@ import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Card } from "@/components/ui/card";
 import { exportClosedShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatData, formatMoeda } from "@/lib/format";
 import type { ShowWithClient } from "@/types/database";
 
 export function ClosedShows() {
@@ -48,7 +48,7 @@ export function ClosedShows() {
             Shows fechados
           </h1>
           <p className="text-sm text-muted-foreground">
-            {shows.length} show(s) · Total {formatCurrency(total)}
+            {shows.length} show(s) · Total {formatMoeda(total)}
           </p>
         </div>
         <ExportExcelButton
@@ -87,10 +87,10 @@ export function ClosedShows() {
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-semibold">
-                  {formatCurrency(show.value_cents)}
+                  {formatMoeda(show.value_cents)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(show.event_date)}
+                  {formatData(show.event_date)}
                 </p>
               </div>
             </button>

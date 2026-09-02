@@ -25,7 +25,8 @@ import {
 import { exportReportToExcel } from "@/lib/report-export";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES } from "@/lib/status";
-import { cn, formatCurrency, formatDate, parseDateOnly } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData, formatMoeda, parseDateOnly } from "@/lib/format";
 import type { ShowStatus } from "@/types/database";
 
 /** Cor da barra de cada etapa — a mesma usada no Kanban e no calendário. */
@@ -236,12 +237,12 @@ export function Reports() {
               ? `Fechado em ${ano}`
               : `Fechado em ${MESES[Number(mes)]}`
           }
-          value={formatCurrency(somaMes)}
+          value={formatMoeda(somaMes)}
           hint={`${fechadosNoMes} show(s) fechado(s)`}
         />
         <StatTile
           label={`Fechado no ano de ${ano}`}
-          value={formatCurrency(somaAno)}
+          value={formatMoeda(somaAno)}
           hint={`${fechadosNoAno} show(s) fechado(s)`}
         />
         <StatTile
@@ -294,7 +295,7 @@ export function Reports() {
                 >
                   <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-1 text-2xl font-bold tracking-tight">
-                    {formatCurrency(dados.totalCents)}
+                    {formatMoeda(dados.totalCents)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {dados.rotulo} · {dados.quantidade} show(s)
@@ -320,11 +321,11 @@ export function Reports() {
                       {show.artist_name}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatDate(show.event_date)}
+                      {formatData(show.event_date)}
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold tabular-nums">
-                    {formatCurrency(show.value_cents)}
+                    {formatMoeda(show.value_cents)}
                   </span>
                 </li>
               ))}
@@ -361,7 +362,7 @@ export function Reports() {
                         </span>
                         <span className="tabular-nums text-muted-foreground">
                           {quantidade} show(s) ·{" "}
-                          {formatCurrency(valorPorStatus[status])}
+                          {formatMoeda(valorPorStatus[status])}
                         </span>
                       </div>
                       <div className="h-3 w-full rounded-sm bg-muted">

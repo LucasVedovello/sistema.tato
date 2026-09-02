@@ -18,7 +18,7 @@
  */
 
 import { currencyToWords } from "@/lib/extenso";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatData, formatMoeda } from "@/lib/format";
 
 export type ContractTemplateKey = "carnellos" | "producao";
 
@@ -83,24 +83,42 @@ const box = (page: number, x: number, y: number, w: number, h: number): Box => (
  * ascendente da fonte — ou seja, cobrem a linha inteira.
  */
 const BOXES = {
+  /** Página 1: título do documento. */
+  titulo: box(1, 70, 87.5, 466, 15),
   /** Página 1: qualificação do CONTRATADO (três linhas, no topo). */
   contratado: box(1, 70, 117, 466, 46),
-  /** Página 1: "CONTRATANTE: Nome completo:, CPF/CNPJ:, Telefone:, Endereço:" */
-  contratante: box(1, 70, 175, 466, 27),
+  /**
+   * Página 1: "CONTRATANTE: Nome completo:, CPF/CNPJ:, Telefone:, Endereço:"
+   * Duas linhas: com o endereço completo do cadastro, a qualificação não cabe
+   * mais em uma só.
+   */
+  contratante: box(1, 70, 168, 466, 30),
+  /** Página 1: título da cláusula 1. */
+  clausula1: box(1, 70, 204, 466, 15),
   /** Página 1, cláusula 1: as três linhas do objeto. */
   objeto: box(1, 70, 233, 466, 50),
+  /** Página 1: título da cláusula 2. */
+  clausula2: box(1, 70, 291.5, 466, 15),
   /** Página 1, cláusula 2.1: obrigações do contratado (seis linhas). */
   obrigacoesContratado: box(1, 70, 320, 466, 88),
   /** Página 1, cláusula 2.2: obrigações do contratante (cinco linhas). */
   obrigacoesContratante: box(1, 70, 422, 466, 74),
+  /** Página 1, cláusula 2.4: atraso e reajuste de horário (cinco linhas). */
+  atraso: box(1, 70, 567.5, 466, 74),
+  /** Página 2: título da cláusula 3. */
+  clausula3: box(2, 70, 73, 466, 15),
   /** Página 2, cláusula 3: o primeiro parágrafo inteiro (cinco linhas). */
   remuneracao: box(2, 70, 102, 466, 86),
   /** Página 2, cláusula 3: o parágrafo das despesas (duas linhas). */
   despesas: box(2, 70, 189, 466, 32),
+  /** Página 2: título da cláusula 4. */
+  clausula4: box(2, 70, 277, 466, 15),
   /** Página 2, cláusula 4.1: vigência + multa de rescisão. */
   multa: box(2, 70, 306, 466, 71),
   /** Página 2, cláusula 4.3: descumprimento das obrigações (duas linhas). */
   descumprimento: box(2, 70, 422, 466, 32),
+  /** Página 2: título da cláusula 5. */
+  clausula5: box(2, 70, 509.5, 466, 15),
   /** Página 2, fim da cláusula 5: "... sucessores. Paulínia, <data>." */
   localData: box(2, 70, 567, 400, 15),
   /** Página 2: rótulo sob a linha de assinatura do contratado. */
@@ -163,6 +181,24 @@ const MESES = [
 export const longDate = (d: Date): string =>
   `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 
+/**
+ * Dois textos livres querem dizer a mesma coisa?
+ *
+ * Serve para o nome do evento e o local do show: quem cadastra costuma repetir
+ * o mesmo nome nos dois campos, e a cláusula 1 saía com "no evento Duck, em
+ * Duck". Compara sem caixa, sem acento e sem espaço sobrando.
+ */
+const mesmoTexto = (a: string, b: string): boolean => {
+  const chave = (valor: string) =>
+    valor
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  return chave(a) !== "" && chave(a) === chave(b);
+};
+
 /** Texto de um campo em branco: fica visível que falta preencher. */
 const ou = (valor: string, vazio = "____________") =>
   valor.trim() ? valor.trim() : vazio;
@@ -199,6 +235,36 @@ const horario = (valor: string): string => {
  * entradas — nada mais no arquivo depende delas.
  */
 
+/**
+ * Títulos, iguais nos dois modelos.
+ *
+ * O modelo escreve "CLÁUSULA 1 – DO OBJETO" com meia-risca e o título do
+ * documento termina em ponto. Aqui tudo vira o mesmo padrão: hífen entre
+ * espaços e título sem ponto final.
+ */
+const TITULOS: { box: Box; text: string }[] = [
+  { box: BOXES.titulo, text: "CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS" },
+  { box: BOXES.clausula1, text: "CLÁUSULA 1 - DO OBJETO" },
+  { box: BOXES.clausula2, text: "CLÁUSULA 2 - DAS OBRIGAÇÕES DAS PARTES" },
+  { box: BOXES.clausula3, text: "CLÁUSULA 3 - DA REMUNERAÇÃO" },
+  { box: BOXES.clausula4, text: "CLÁUSULA 4 - DA VIGÊNCIA E RESCISÃO" },
+  { box: BOXES.clausula5, text: "CLÁUSULA 5 - DISPOSIÇÕES FINAIS" },
+];
+
+/**
+ * Cláusula 2.4 — igual nos dois modelos.
+ *
+ * O modelo falava em "horário da apresentação do DJ", resíduo do contrato de
+ * onde este foi copiado. Vira ARTISTA, que é o que o documento contrata.
+ */
+const ATRASO =
+  "2.4 - Em caso de atraso decorrente da organização do evento ou da " +
+  "apresentação do artista headliner, o horário da apresentação do ARTISTA " +
+  "poderá ser reajustado conforme a necessidade operacional do evento. " +
+  "Contudo, eventual alteração ou redução no tempo de apresentação não " +
+  "implicará, em nenhuma hipótese, redução do cachê contratado, devendo ser " +
+  "mantido integralmente o valor previamente acordado neste contrato.";
+
 /** Cláusula 2.1 — igual nos dois modelos. */
 const OBRIGACOES_CONTRATADO =
   "2.1 - **O CONTRATADO** compromete-se a cumprir todos os termos " +
@@ -212,8 +278,8 @@ const OBRIGACOES_CONTRATADO =
 /** Cláusula 3.2 (impressa como "2.2") — igual nos dois modelos. */
 const DESPESAS =
   "3.2 - Despesas como transporte e equipe já estão contempladas no valor " +
-  "total do show, fica a responsabilidade do contratante somente o rider " +
-  "artístico e o rider técnico dos artistas.";
+  "total do show. Fica sob a responsabilidade do contratante somente o rider " +
+  "artístico e o rider técnico do artista.";
 
 /** Monta as correções de um modelo. */
 function correcoes(textos: {
@@ -225,6 +291,8 @@ function correcoes(textos: {
   contratado?: string;
 }): OverlayText[] {
   const campos: OverlayText[] = [
+    ...TITULOS.map((titulo) => ({ ...titulo, redact: true })),
+    { box: BOXES.atraso, text: ATRASO, redact: true, justify: true },
     {
       box: BOXES.obrigacoesContratado,
       text: OBRIGACOES_CONTRATADO,
@@ -262,7 +330,7 @@ const parte = (cents: number | null, fracao: number) =>
   cents == null ? null : Math.round(cents * fracao);
 
 const dinheiro = (cents: number | null) =>
-  cents == null ? "____________" : formatCurrency(cents);
+  cents == null ? "____________" : formatMoeda(cents);
 
 const extenso = (cents: number | null) =>
   cents == null ? "valor por extenso" : currencyToWords(cents);
@@ -304,12 +372,18 @@ function multa(d: ContractData): string {
   );
 }
 
-/** Qualificação do contratante — idêntica nos dois modelos. */
+/**
+ * Qualificação do contratante — idêntica nos dois modelos.
+ *
+ * Mesma pontuação da qualificação do CONTRATADO, inclusive o ponto final: o
+ * endereço chega pronto de `formatEndereco` (sem ponto), e é esta frase que o
+ * encerra.
+ */
 function contratante(d: ContractData): string {
   return (
     `**CONTRATANTE:** Nome completo: ${ou(d.clientName)}, ` +
     `CPF/CNPJ: ${ou(d.clientDocument)}, Telefone: ${ou(d.clientPhone)}, ` +
-    `Endereço: ${ou(d.clientAddress)}`
+    `Endereço: ${ou(d.clientAddress)}.`
   );
 }
 
@@ -335,9 +409,13 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
       path: "Contranto BASE - Carnellosmusic 2026.pdf (1).pdf",
       office: "Escritório Carnellos Music",
       overlay: (d) => {
-        const local = d.eventName.trim()
-          ? `${d.eventName.trim()}, ${ou(d.location)}`
-          : ou(d.location);
+        // Nome do evento e local são campos distintos, mas costumam vir com o
+        // mesmo texto — nesse caso o contrato cita o lugar uma vez só.
+        const nomeEvento = d.eventName.trim();
+        const local =
+          nomeEvento && !mesmoTexto(nomeEvento, d.location)
+            ? `${nomeEvento}, ${ou(d.location)}`
+            : ou(nomeEvento || d.location);
         return [
           { box: BOXES.contratante, text: contratante(d), redact: true },
           {
@@ -347,7 +425,7 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             text:
               `O presente contrato tem por objeto a contratação do show do ` +
               `artista ${ou(d.artist)}, a ser realizado na data de ${
-                d.eventDate ? formatDate(d.eventDate) : "__/__/____"
+                d.eventDate ? formatData(d.eventDate) : "__/__/____"
               }, em ${local}, ${horario(d.eventTime)}.`,
           },
           {
@@ -392,10 +470,15 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
               "2.2 - **O CONTRATANTE** compromete-se a cumprir todos os " +
               "termos previamente acordados com o produtor do evento, cumprir " +
               "rigorosamente os horários, garantir acesso ao local do evento " +
-              "com segurança, atender o rider técnico e rider artístico " +
-              "enviado pela produção do artista, realizar os pagamentos " +
+              "com segurança, atender o rider técnico e o rider artístico, " +
+              "enviados pela produção do artista, realizar os pagamentos " +
               "previstos neste contrato, garantir condições estruturais e de " +
               "segurança adequadas para a realização do evento.",
+            contratado:
+              "**CONTRATADO:** Carnellos Music, CNPJ: 64.423.267/0001-74, " +
+              "Telefone: (19) 99585-3230 e/ou (19) 98419-5531, Endereço: " +
+              "Avenida Severino Beraldo, nº 236, representado por Caio " +
+              "Scarano Vedovello e Lucas Carnellos Oliveira.",
             descumprimento:
               "4.3 - O não cumprimento das obrigações do artista previstas " +
               "na Cláusula 2 resultará em rescisão automática e multa por " +
@@ -414,9 +497,12 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
       overlay: (d) => {
         // O nome do evento é opcional: sem ele a frase vai direto ao local, em
         // vez de repetir o mesmo endereço como evento E como local.
-        const evento = d.eventName.trim()
-          ? `no evento ${d.eventName.trim()}, `
-          : "";
+        const nomeEvento = d.eventName.trim();
+        const evento =
+          nomeEvento && !mesmoTexto(nomeEvento, d.location)
+            ? `no evento ${nomeEvento}, `
+            : "";
+        const local = ou(d.location || nomeEvento);
 
         return [
           { box: BOXES.contratante, text: contratante(d), redact: true },
@@ -425,12 +511,11 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             redact: true,
             justify: true,
             text:
-              `O presente contrato tem por objeto a contratação de artistas, ` +
-              `por meio do escritório CV Produção Artística, para ` +
-              `apresentação na data de ${
-                d.eventDate ? formatDate(d.eventDate) : "__/__/____"
-              }, ${evento}em ${ou(d.location)}, ${horario(d.eventTime)}. ` +
-              `Artista(s): ${ou(d.artist)}.`,
+              `O presente contrato tem por objeto a contratação do artista ` +
+              `${ou(d.artist)}, por meio do escritório CV Produção Artística, ` +
+              `para apresentação na data de ${
+                d.eventDate ? formatData(d.eventDate) : "__/__/____"
+              }, ${evento}em ${local}, ${horario(d.eventTime)}.`,
           },
           {
             box: BOXES.remuneracao,
@@ -481,8 +566,8 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
               "2.2 - **O CONTRATANTE** compromete-se a cumprir todos os " +
               "termos previamente acordados com o produtor do evento, cumprir " +
               "rigorosamente os horários, garantir acesso ao local do evento " +
-              "com segurança, atender o rider técnico e rider artístico dos " +
-              "artistas enviado pela produção do escritório, realizar os " +
+              "com segurança, atender o rider técnico e o rider artístico do " +
+              "artista, enviados pela produção do escritório, realizar os " +
               "pagamentos previstos neste contrato, garantir condições " +
               "estruturais e de segurança adequadas para a realização do " +
               "evento.",

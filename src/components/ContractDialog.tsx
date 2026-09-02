@@ -19,7 +19,16 @@ import {
   type ContractExtras,
 } from "@/lib/contracts";
 import { supabase } from "@/lib/supabase";
-import { cn, formatCurrency, formatDate, formatTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import {
+  formatData,
+  formatDocumento,
+  formatEndereco,
+  formatHora,
+  formatMoeda,
+  formatTelefone,
+  titleCase,
+} from "@/lib/format";
 import type { Client, Show, ShowContract } from "@/types/database";
 
 /**
@@ -56,7 +65,7 @@ export function ContractDialog({
   useEffect(() => {
     if (!open) return;
     setTemplateKey(null);
-    setExtras({ ...emptyExtras, eventTime: formatTime(show.event_time) });
+    setExtras({ ...emptyExtras, eventTime: formatHora(show.event_time) });
     setError(null);
   }, [open, show.event_time]);
 
@@ -66,6 +75,14 @@ export function ContractDialog({
   ) {
     setExtras((prev) => ({ ...prev, [key]: value }));
   }
+
+  /** Nome próprio digitado aqui entra no contrato com a caixa arrumada. */
+  function normalizarNome(key: "eventName" | "city") {
+    setExtras((prev) => ({ ...prev, [key]: titleCase(prev[key]) }));
+  }
+
+  /** Endereço do contratante, montado do cadastro (nunca digitado aqui). */
+  const enderecoCliente = client ? formatEndereco(client) : "";
 
   async function handleGenerate() {
     if (!templateKey) return;
@@ -135,6 +152,14 @@ export function ContractDialog({
           ))}
         </div>
 
+        {client && !enderecoCliente && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            O cliente está sem endereço no cadastro — a qualificação do
+            contratante sai com a lacuna. Preencha o endereço em Clientes para
+            o contrato sair completo.
+          </p>
+        )}
+
         {!client && (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
             Este show não tem cliente vinculado. O contrato sai com a
@@ -150,27 +175,24 @@ export function ContractDialog({
           <p className="mt-1">
             Artista: {show.artist_full_name?.trim() || show.artist_name} ·
             Contratante: {client?.full_name?.trim() || client?.name || "—"} ·
-            Data: {formatDate(show.event_date)} · Local: {show.location ?? "—"} ·
-            Valor: {formatCurrency(show.value_cents)}
+            Data: {formatData(show.event_date)} · Local: {show.location ?? "—"} ·
+            Valor: {formatMoeda(show.value_cents)}
           </p>
+          <p className="mt-1">
+            Documento: {formatDocumento(client?.document) || "—"} · Telefone:{" "}
+            {formatTelefone(client?.phone) || "—"}
+          </p>
+          <p className="mt-1">Endereço: {enderecoCliente || "—"}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="client_address">Endereço do contratante</Label>
-            <Input
-              id="client_address"
-              value={extras.clientAddress}
-              onChange={(e) => update("clientAddress", e.target.value)}
-              placeholder="Rua, nº, cidade"
-            />
-          </div>
           <div className="space-y-1.5">
             <Label htmlFor="event_name">Nome do evento</Label>
             <Input
               id="event_name"
               value={extras.eventName}
               onChange={(e) => update("eventName", e.target.value)}
+              onBlur={() => normalizarNome("eventName")}
               placeholder="Festa da Cidade"
             />
           </div>
@@ -190,6 +212,7 @@ export function ContractDialog({
               id="contract_city"
               value={extras.city}
               onChange={(e) => update("city", e.target.value)}
+              onBlur={() => normalizarNome("city")}
               placeholder="Paulínia"
             />
           </div>

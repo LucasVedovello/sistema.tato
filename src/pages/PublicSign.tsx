@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { signatureField } from "@/lib/contract-templates";
 import { deadlineInfo, publicContractPdfUrl } from "@/lib/contracts";
 import { supabase } from "@/lib/supabase";
-import { formatDate } from "@/lib/utils";
+import { formatData } from "@/lib/format";
 import type { PublicContract } from "@/types/database";
 
 function PublicHeader({ subtitle }: { subtitle?: string }) {
@@ -229,7 +229,7 @@ export function PublicSign() {
           <h2 className="text-lg font-semibold">Leia e assine seu contrato</h2>
           <p className="text-sm text-muted-foreground">
             Show de {contract.artist_name}
-            {contract.event_date ? ` em ${formatDate(contract.event_date)}` : ""}
+            {contract.event_date ? ` em ${formatData(contract.event_date)}` : ""}
             {contract.location ? ` · ${contract.location}` : ""}. Role o
             documento até o fim e assine no campo destacado.
           </p>

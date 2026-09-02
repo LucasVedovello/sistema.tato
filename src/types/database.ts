@@ -35,8 +35,21 @@ export type Client = {
   full_name: string | null;
   phone: string | null;
   email: string | null;
-  /** CPF/CNPJ — usado na qualificação das partes no contrato. */
+  /** CPF/CNPJ com máscara — usado na qualificação das partes no contrato. */
   document: string | null;
+  /**
+   * Endereço em partes. A linha do contrato é montada por `formatEndereco`
+   * (src/lib/format.ts), nunca escrita à mão — é o que garante o mesmo
+   * formato em todo documento.
+   */
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  /** Sigla do estado, duas letras maiúsculas. */
+  uf: string | null;
+  cep: string | null;
   notes: string | null;
   created_at: string;
 };

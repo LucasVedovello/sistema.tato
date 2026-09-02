@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import { isOverdue } from "@/lib/tasks";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData } from "@/lib/format";
 import type { ShowTask } from "@/types/database";
 
 /** Tarefas do show: criar, marcar como concluída e excluir. */
@@ -173,7 +174,7 @@ export function ShowTasks({ showId }: { showId: string }) {
                         )}
                       >
                         <CalendarClock className="h-3 w-3" />
-                        {formatDate(task.due_date)}
+                        {formatData(task.due_date)}
                         {atrasada && " · atrasada"}
                       </p>
                     )}

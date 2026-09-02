@@ -6,7 +6,7 @@
  * mudar.
  */
 
-import { parseDateOnly } from "@/lib/utils";
+import { parseDateOnly } from "@/lib/format";
 import type { ShowStatus } from "@/types/database";
 
 /** Só o que o relatório usa de cada show. */

@@ -15,13 +15,8 @@ import {
 import { exportCalendarShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
 import { CALENDAR_STATUS_PRIORITY, STATUS_STYLES } from "@/lib/status";
-import {
-  cn,
-  formatCurrency,
-  formatDate,
-  formatTime,
-  toDateOnly,
-} from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatData, formatHora, formatMoeda, toDateOnly } from "@/lib/format";
 import type { ShowStatus, ShowWithClient } from "@/types/database";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -265,7 +260,7 @@ export function Calendar() {
                         a agenda ser lida sem abrir o dia. */}
                     <span className="mt-1 hidden space-y-0.5 overflow-hidden sm:block">
                       {list.slice(0, 2).map((show) => {
-                        const hora = formatTime(show.event_time);
+                        const hora = formatHora(show.event_time);
                         return (
                           <span
                             key={show.id}
@@ -331,7 +326,7 @@ export function Calendar() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedDay && formatDate(selectedDay)}</DialogTitle>
+            <DialogTitle>{selectedDay && formatData(selectedDay)}</DialogTitle>
             <DialogDescription>
               {selectedShows.length} show(s) nesta data.
             </DialogDescription>
@@ -351,8 +346,8 @@ export function Calendar() {
                     <p className="truncate text-sm text-muted-foreground">
                       {show.clients?.name ?? "Sem cliente"}
                       {show.location ? ` · ${show.location}` : ""}
-                      {formatTime(show.event_time)
-                        ? ` · ${formatTime(show.event_time)}`
+                      {formatHora(show.event_time)
+                        ? ` · ${formatHora(show.event_time)}`
                         : ""}
                     </p>
                     <span
@@ -365,7 +360,7 @@ export function Calendar() {
                     </span>
                   </div>
                   <p className="shrink-0 font-semibold">
-                    {formatCurrency(show.value_cents)}
+                    {formatMoeda(show.value_cents)}
                   </p>
                 </button>
               );
