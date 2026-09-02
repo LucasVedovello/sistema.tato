@@ -255,12 +255,17 @@ const TITULOS: { box: Box; text: string }[] = [
  * Cláusula 2.4 — igual nos dois modelos.
  *
  * O modelo falava em "horário da apresentação do DJ", resíduo do contrato de
- * onde este foi copiado. Vira ARTISTA, que é o que o documento contrata.
+ * onde este foi copiado. Vira **CONTRATADO**: a caixa alta neste documento é
+ * reservada às PARTES (CONTRATANTE e CONTRATADO), e é a parte contratada que
+ * tem o horário reajustado. "artista" em minúscula continua valendo quando o
+ * texto fala de artista genericamente — como no "artista headliner" da mesma
+ * frase, que não é parte deste contrato.
  */
 const ATRASO =
   "2.4 - Em caso de atraso decorrente da organização do evento ou da " +
-  "apresentação do artista headliner, o horário da apresentação do ARTISTA " +
-  "poderá ser reajustado conforme a necessidade operacional do evento. " +
+  "apresentação do artista headliner, o horário da apresentação do " +
+  "**CONTRATADO** poderá ser reajustado conforme a necessidade operacional " +
+  "do evento. " +
   "Contudo, eventual alteração ou redução no tempo de apresentação não " +
   "implicará, em nenhuma hipótese, redução do cachê contratado, devendo ser " +
   "mantido integralmente o valor previamente acordado neste contrato.";
@@ -523,7 +528,7 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             justify: true,
             text: remuneracao(d, {
               quando:
-                "antes do início das apresentações ou logo após o encerramento " +
+                "antes do início da apresentação ou logo após o encerramento " +
                 "da apresentação",
               conta: "na conta PJ do escritório",
               cnpj: "59.690.383/0001-10",
