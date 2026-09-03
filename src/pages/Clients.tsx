@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Eye,
+  EyeOff,
   Mail,
   MapPin,
   Pencil,
   Phone,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   Users,
@@ -14,6 +17,14 @@ import { ClientFormDialog } from "@/components/ClientFormDialog";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { exportClientsToExcel } from "@/lib/clients-export";
 import { formatEndereco, formatTelefone } from "@/lib/format";
@@ -28,6 +39,10 @@ export function Clients() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
+  /** Cliente que está sendo removido — abre o diálogo de ocultar/excluir. */
+  const [removendo, setRemovendo] = useState<ClientWithShowCount | null>(null);
+  const [mostrarInativos, setMostrarInativos] = useState(false);
+  const [salvando, setSalvando] = useState(false);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -44,15 +59,22 @@ export function Clients() {
     void load();
   }, [load]);
 
+  const inativos = useMemo(
+    () => clients.filter((c) => !c.active).length,
+    [clients]
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return clients;
-    return clients.filter((c) =>
+    // Inativos ficam fora por padrão: some das listas sem perder o histórico.
+    const visiveis = mostrarInativos ? clients : clients.filter((c) => c.active);
+    if (!term) return visiveis;
+    return visiveis.filter((c) =>
       [c.name, c.full_name, c.phone, c.email, c.cidade]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(term))
     );
-  }, [clients, search]);
+  }, [clients, search, mostrarInativos]);
 
   function openNew() {
     setEditing(null);
@@ -64,19 +86,31 @@ export function Clients() {
     setDialogOpen(true);
   }
 
-  async function handleDelete(client: ClientWithShowCount) {
-    const shows = client.shows?.[0]?.count ?? 0;
-    const aviso =
-      shows > 0
-        ? `\n\n${shows} show(s) ficarão sem cliente vinculado (os shows não são apagados).`
-        : "";
-    if (!window.confirm(`Excluir "${client.name}"?${aviso}`)) return;
-
-    const { error } = await supabase.from("clients").delete().eq("id", client.id);
+  /** Liga/desliga o cliente sem tocar no histórico. */
+  async function definirAtivo(client: ClientWithShowCount, ativo: boolean) {
+    setSalvando(true);
+    const { error } = await supabase
+      .from("clients")
+      .update({ active: ativo })
+      .eq("id", client.id);
+    setSalvando(false);
     if (error) {
       setError(error.message);
       return;
     }
+    setRemovendo(null);
+    void load();
+  }
+
+  async function excluir(client: ClientWithShowCount) {
+    setSalvando(true);
+    const { error } = await supabase.from("clients").delete().eq("id", client.id);
+    setSalvando(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setRemovendo(null);
     void load();
   }
 
@@ -89,12 +123,29 @@ export function Clients() {
             Clientes
           </h1>
           <p className="text-sm text-muted-foreground">
-            {clients.length} cliente(s) cadastrado(s).
+            {clients.filter((c) => c.active).length} cliente(s) ativo(s)
+            {inativos > 0 ? ` · ${inativos} inativo(s)` : ""}.
           </p>
         </div>
         {/* No celular as duas ações dividem a largura da tela; a partir de
             sm voltam a ficar à direita do título. */}
         <div className="flex w-full flex-col items-stretch gap-2 min-[420px]:flex-row sm:w-auto sm:items-start">
+          {inativos > 0 && (
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setMostrarInativos((v) => !v)}
+            >
+              {mostrarInativos ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              {mostrarInativos
+                ? "Ocultar inativos"
+                : `Ver inativos (${inativos})`}
+            </Button>
+          )}
           <ExportExcelButton
             onExport={exportClientsToExcel}
             emptyMessage="Nenhum cliente cadastrado ainda."
@@ -147,6 +198,11 @@ export function Clients() {
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {showCount} show(s)
                     </span>
+                    {!client.active && (
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        Inativo
+                      </span>
+                    )}
                   </div>
                   {/* O nome completo só aparece quando difere do da ficha —
                       repetir a mesma linha duas vezes não informa nada. */}
@@ -192,21 +248,100 @@ export function Clients() {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleDelete(client)}
-                    title={`Excluir ${client.name}`}
-                    aria-label={`Excluir ${client.name}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  {client.active ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setRemovendo(client)}
+                      title={`Remover ${client.name}`}
+                      aria-label={`Remover ${client.name}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => void definirAtivo(client, true)}
+                      title={`Reativar ${client.name}`}
+                      aria-label={`Reativar ${client.name}`}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
         </Card>
       )}
+
+      {/*
+        Remover tem dois sentidos, e o diálogo separa os dois: ocultar tira o
+        nome das listas e preserva o histórico; excluir apaga o cadastro e
+        deixa os shows sem contratante. Com shows vinculados, ocultar é o
+        caminho recomendado.
+      */}
+      <Dialog
+        open={removendo !== null}
+        onOpenChange={(aberto) => !aberto && setRemovendo(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remover “{removendo?.name}”?</DialogTitle>
+            <DialogDescription>
+              {(removendo?.shows?.[0]?.count ?? 0) > 0
+                ? `Este cliente tem ${removendo?.shows?.[0]?.count} show(s) vinculado(s).`
+                : "Este cliente não tem shows vinculados."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 text-sm">
+            <p className="rounded-md border bg-muted/40 p-3">
+              <span className="font-medium text-foreground">Ocultar:</span> o
+              nome sai das listagens e do seletor de cliente do show, mas os
+              shows e contratos antigos continuam intactos. Dá para reativar
+              quando quiser.
+            </p>
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
+              <span className="font-medium text-destructive">Excluir:</span>{" "}
+              apaga o cadastro de vez.
+              {(removendo?.shows?.[0]?.count ?? 0) > 0
+                ? " Os shows não são apagados, mas ficam sem contratante."
+                : ""}{" "}
+              Não dá para desfazer.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRemovendo(null)}
+              disabled={salvando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => removendo && void excluir(removendo)}
+              disabled={salvando}
+            >
+              <Trash2 className="h-4 w-4" />
+              Excluir
+            </Button>
+            <Button
+              type="button"
+              onClick={() => removendo && void definirAtivo(removendo, false)}
+              disabled={salvando}
+            >
+              <EyeOff className="h-4 w-4" />
+              Ocultar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ClientFormDialog
         open={dialogOpen}

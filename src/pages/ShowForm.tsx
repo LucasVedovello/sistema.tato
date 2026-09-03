@@ -424,11 +424,20 @@ export function ShowForm() {
                           Nenhum cliente cadastrado
                         </div>
                       )}
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
+                      {/* Inativo não aparece na lista — a não ser que seja o
+                          cliente já vinculado a este show, que precisa
+                          continuar visível na ficha. */}
+                      {clients
+                        .filter(
+                          (client) =>
+                            client.active || client.id === form.client_id
+                        )
+                        .map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name}
+                            {client.active ? "" : " (inativo)"}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <Button

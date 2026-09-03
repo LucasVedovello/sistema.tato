@@ -51,6 +51,11 @@ export type Client = {
   uf: string | null;
   cep: string | null;
   notes: string | null;
+  /**
+   * Cliente inativo some das listagens e do seletor do show, mas continua
+   * vinculado aos shows e contratos antigos.
+   */
+  active: boolean;
   created_at: string;
 };
 
@@ -240,9 +245,12 @@ export interface Database {
     Tables: {
       clients: {
         Row: Client;
-        Insert: OptionalNullable<Omit<Client, "id" | "created_at">> & {
+        // `active` sai do Insert obrigatório: a coluna tem default `true` no
+        // banco, e todo cadastro novo nasce ativo.
+        Insert: OptionalNullable<Omit<Client, "id" | "created_at" | "active">> & {
           id?: string;
           created_at?: string;
+          active?: boolean;
         };
         Update: Partial<Omit<Client, "id" | "created_at">>;
         Relationships: [];

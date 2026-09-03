@@ -46,7 +46,9 @@ export async function exportReportToExcel(
 ): Promise<number> {
   const { data, error } = await supabase
     .from("shows")
-    .select("id, status, value_cents, event_date, artist_name");
+    .select(
+      "id, status, value_cents, event_date, artist_name, artist_full_name"
+    );
   if (error) throw new Error(error.message);
 
   const shows = (data as LinhaShow[]) ?? [];

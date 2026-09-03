@@ -30,5 +30,13 @@ const UNSUPPORTED: Record<string, string> = {
 const UNSUPPORTED_RE = new RegExp(`[${Object.keys(UNSUPPORTED).join("")}]`, "g");
 
 export function sanitizePdfText(text: string): string {
-  return text.replace(UNSUPPORTED_RE, (char) => UNSUPPORTED[char] ?? char);
+  return (
+    text
+      // NFC junta letra + acento combinante num caractere só ("A" + U+0301 ->
+      // "Á"). Texto assim chega de fora (macOS/iOS normalizam nomes em NFD ao
+      // digitar), e a tabela WinAnsi não tem o acento solto: ele sairia
+      // deslocado ou sumiria, deixando "CLAUSULA".
+      .normalize("NFC")
+      .replace(UNSUPPORTED_RE, (char) => UNSUPPORTED[char] ?? char)
+  );
 }

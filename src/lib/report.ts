@@ -15,9 +15,22 @@ export type LinhaShow = {
   status: ShowStatus;
   value_cents: number | null;
   event_date: string | null;
-  /** Nome da ficha do artista — é por ele que o filtro agrupa. */
+  /** Nome da ficha — fica no dashboard, não aparece aqui. */
   artist_name: string;
+  /** Nome completo: é ELE que o relatório mostra e agrupa. */
+  artist_full_name: string | null;
 };
+
+/**
+ * Nome do artista no relatório.
+ *
+ * Vale a mesma regra do contrato: relatório fala pelo nome completo; o nome da
+ * ficha ("Carnellos - Baile Run", com o evento junto) é apelido de trabalho e
+ * fica no dashboard. Sem nome completo cadastrado, cai na ficha — melhor um
+ * nome curto do que uma linha vazia no relatório.
+ */
+export const nomeDoArtista = (show: LinhaShow): string =>
+  show.artist_full_name?.trim() || show.artist_name;
 
 /**
  * Etapas do funil, na ordem da negociação.
@@ -67,7 +80,7 @@ export const PERIODOS_ARTISTA: { key: PeriodoArtista; label: string }[] = [
 export function artistasDisponiveis(shows: LinhaShow[]): string[] {
   const nomes = new Set<string>();
   for (const show of shows) {
-    const nome = show.artist_name?.trim();
+    const nome = nomeDoArtista(show)?.trim();
     if (nome) nomes.add(nome);
   }
   return [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -79,7 +92,7 @@ export function filtrarPorArtista(
   artista: string
 ): LinhaShow[] {
   if (artista === TODOS_OS_ARTISTAS) return shows;
-  return shows.filter((s) => s.artist_name === artista);
+  return shows.filter((s) => nomeDoArtista(s) === artista);
 }
 
 const zeradoPorStatus = (): Record<ShowStatus, number> => ({

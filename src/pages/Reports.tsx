@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Mic2, TrendingUp, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart3, Mic2, Settings2, TrendingUp, XCircle } from "lucide-react";
 
+import { ArtistManagerDialog } from "@/components/ArtistManagerDialog";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -13,6 +15,7 @@ import {
 import {
   artistasDisponiveis,
   calcularFechadoPorPeriodo,
+  nomeDoArtista,
   calcularRelatorio,
   ETAPAS_FUNIL,
   MESES,
@@ -72,22 +75,23 @@ export function Reports() {
   const [artista, setArtista] = useState<string>(TODOS_OS_ARTISTAS);
   const [periodoArtista, setPeriodoArtista] = useState<PeriodoArtista>("mes");
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("id, status, value_cents, event_date, artist_name");
+  const [gerenciarAberto, setGerenciarAberto] = useState(false);
 
-      if (!active) return;
-      if (error) setError(error.message);
-      else setShows((data as LinhaShow[]) ?? []);
-      setLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
+  const carregar = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("shows")
+      .select(
+        "id, status, value_cents, event_date, artist_name, artist_full_name"
+      );
+
+    if (error) setError(error.message);
+    else setShows((data as LinhaShow[]) ?? []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
 
   /** Artistas que aparecem nos dados (todos os anos, não só o filtrado). */
   const artistas = useMemo(() => artistasDisponiveis(shows), [shows]);
@@ -187,6 +191,18 @@ export function Reports() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Some com nomes que não deveriam estar na lista (cadastros de
+              teste, sobras) sem precisar abrir o banco. */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setGerenciarAberto(true)}
+            title="Gerenciar artistas"
+            aria-label="Gerenciar artistas"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
 
           <Select value={mes} onValueChange={setMes}>
             <SelectTrigger className="w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Mês">
@@ -318,7 +334,7 @@ export function Reports() {
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">
-                      {show.artist_name}
+                      {nomeDoArtista(show)}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {formatData(show.event_date)}
@@ -396,6 +412,17 @@ export function Reports() {
           )}
         </CardContent>
       </Card>
+
+      <ArtistManagerDialog
+        open={gerenciarAberto}
+        onOpenChange={setGerenciarAberto}
+        shows={shows}
+        onChanged={() => {
+          // O artista escolhido pode ter acabado de sair da lista.
+          setArtista(TODOS_OS_ARTISTAS);
+          void carregar();
+        }}
+      />
     </div>
   );
 }

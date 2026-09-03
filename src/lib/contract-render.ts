@@ -16,6 +16,15 @@
 import type { Box, OverlayText } from "@/lib/contract-templates";
 import { drawParagraph } from "@/lib/contract-text";
 
+/**
+ * Quanto a tarja branca sobe além da caixa, em fração do corpo da fonte.
+ *
+ * 0,15 (1,65 pt em corpo 11) cobre com folga o acento das maiúsculas — que
+ * sobe 10,2 pt da linha de base — sem alcançar a linha de cima, cuja perna
+ * mais funda (g, p, q) desce só 2,4 pt.
+ */
+const MARGEM_ACENTO = 0.15;
+
 export type RenderedPage = {
   /** Imagem da página renderizada (data URL). */
   dataUrl: string;
@@ -183,11 +192,20 @@ export async function composeContractPdf({
     for (const field of texts.filter((t) => t.box.page === index + 1)) {
       if (field.redact) {
         doc.setFillColor(255, 255, 255);
+        // A tarja sobe um pouco além da caixa. As caixas foram medidas pela
+        // linha de base do texto do modelo (9,5 pt acima dela), o que cobre
+        // maiúsculas e minúsculas acentuadas — mas NÃO o acento de uma
+        // maiúscula: em Helvetica, "Á"/"Ã"/"Ê"/"Õ" chegam a 0,929 em, ou seja
+        // 10,2 pt num corpo 11. Ficava para trás uma fatia do acento original,
+        // deslocada 2 pt do acento novo, e o título saía com dois acentos
+        // sobre a mesma letra — sempre nos TÍTULOS, que são a única parte do
+        // documento escrita em caixa alta.
+        const margem = (field.size ?? 11) * MARGEM_ACENTO;
         doc.rect(
           field.box.x * page.width,
-          field.box.y * page.height,
+          field.box.y * page.height - margem,
           field.box.w * page.width,
-          field.box.h * page.height,
+          field.box.h * page.height + margem,
           "F"
         );
       }
