@@ -21,16 +21,13 @@ type Resumo = {
 };
 
 /**
- * Remoção dos artistas que aparecem no filtro dos relatórios.
+ * Limpeza dos artistas que aparecem no filtro dos relatórios.
  *
- * Artista não é cadastro próprio no sistema: é um campo do show. Então
- * "remover um artista da lista" só pode querer dizer uma coisa — apagar os
- * shows dele —, e é isso que este diálogo faz, dizendo antes quantos são e o
- * que vai junto. É o caminho para tirar da tela os shows de teste sem abrir o
- * banco.
- *
- * Cliente é diferente: lá existe cadastro, e a tela de Clientes oferece
- * ocultar em vez de excluir, preservando o histórico.
+ * O que este diálogo faz é APAGAR OS SHOWS de um artista (dizendo antes
+ * quantos são e o que vai junto) — é o caminho para tirar da tela os shows
+ * de teste sem abrir o banco. O cadastro do artista em si não é tocado: para
+ * tirá-lo das listas sem perder histórico, o lugar é a tela de Clientes,
+ * que oferece ocultar/excluir para clientes e artistas igualmente.
  */
 export function ArtistManagerDialog({
   open,
@@ -86,8 +83,9 @@ export function ArtistManagerDialog({
         <DialogHeader>
           <DialogTitle>Gerenciar artistas</DialogTitle>
           <DialogDescription>
-            Estes são os nomes que aparecem no filtro. Apagar um artista apaga
-            os shows dele — use para tirar cadastros de teste do caminho.
+            Estes são os nomes que aparecem no filtro. Apagar um artista aqui
+            apaga os <strong>shows</strong> dele (o cadastro fica) — use para
+            tirar shows de teste do caminho.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,8 +169,8 @@ export function ArtistManagerDialog({
         )}
 
         <p className="text-xs text-muted-foreground">
-          Para tirar um <strong>cliente</strong> das listas sem perder o
-          histórico, use “Ocultar” na tela de Clientes.
+          Para tirar um <strong>artista ou cliente</strong> das listas sem
+          perder o histórico, use “Ocultar” na tela de Clientes.
         </p>
 
         <DialogFooter>

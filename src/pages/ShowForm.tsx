@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
 
@@ -42,17 +42,20 @@ import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
   type Client,
+  type Papel,
   type ShowStatus,
 } from "@/types/database";
 
 interface FormState {
-  /** Nome da ficha (artístico) — o que aparece nas telas. */
-  artist_name: string;
-  /** Nome completo — o único que sai no contrato. */
-  artist_full_name: string;
+  /** Cadastro do artista (`clients.is_artist`). */
+  artist_id: string;
+  /** Cadastro do contratante (`clients.is_client`). */
   client_id: string;
   event_date: string;
+  /** Horário de início, "HH:MM". */
   event_time: string;
+  /** Horário de término, "HH:MM". Pode ser menor que o início (madrugada). */
+  event_end_time: string;
   location: string;
   status: ShowStatus;
   value: string;
@@ -63,11 +66,11 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  artist_name: "",
-  artist_full_name: "",
+  artist_id: "",
   client_id: "",
   event_date: "",
   event_time: "",
+  event_end_time: "",
   location: "",
   status: "criado",
   value: "",
@@ -87,12 +90,17 @@ export function ShowForm() {
     const preset = searchParams.get("data");
     return preset ? { ...emptyForm, event_date: preset } : emptyForm;
   });
+  /** Cadastro inteiro (clientes E artistas); cada seletor filtra o seu papel. */
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientDialogOpen, setClientDialogOpen] = useState(false);
-  const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+  /** Papel com que o diálogo de cadastro foi aberto (null = fechado). */
+  const [cadastroAberto, setCadastroAberto] = useState<Papel | null>(null);
+  /** Cadastro recém-gravado à espera de entrar no seletor do seu papel. */
+  const [pendente, setPendente] = useState<{ id: string; papel: Papel } | null>(
+    null
+  );
   /** Status com que o show foi carregado, para detectar a virada p/ "fechado". */
   const [initialStatus, setInitialStatus] = useState<ShowStatus | null>(null);
   /** Erros de validação por campo, mostrados abaixo de cada um. */
@@ -101,32 +109,60 @@ export function ShowForm() {
   );
 
   /**
-   * Cliente recém-cadastrado pelo diálogo: entra na lista (mantendo a ordem
-   * alfabética do select) e fica pendente de seleção.
+   * Cadastro recém-gravado pelo diálogo: entra na lista (mantendo a ordem
+   * alfabética do select) e fica pendente de seleção no campo do papel com
+   * que o diálogo foi aberto (artista ou cliente).
    *
    * A seleção NÃO pode acontecer aqui. O Radix Select mantém um <select>
    * nativo espelhado e dispara um evento `change` de verdade quando o valor
-   * muda; se a <option> do cliente novo ainda não estiver no DOM (o que
-   * acontece quando lista e valor mudam no mesmo commit), o navegador força o
-   * valor de volta para "" e o onValueChange devolve string vazia, desfazendo
-   * a seleção. Por isso o id fica pendente e só é aplicado no efeito abaixo,
-   * depois que a opção existe.
+   * muda; se a <option> nova ainda não estiver no DOM (o que acontece quando
+   * lista e valor mudam no mesmo commit), o navegador força o valor de volta
+   * para "" e o onValueChange devolve string vazia, desfazendo a seleção.
+   * Por isso o id fica pendente e só é aplicado no efeito abaixo, depois que
+   * a opção existe.
    */
-  function handleClientSaved(client: Client) {
+  function handleCadastroSalvo(client: Client) {
     setClients((prev) =>
       [...prev.filter((c) => c.id !== client.id), client].sort((a, b) =>
         a.name.localeCompare(b.name, "pt-BR")
       )
     );
-    setPendingClientId(client.id);
+    if (cadastroAberto) setPendente({ id: client.id, papel: cadastroAberto });
   }
 
   useEffect(() => {
-    if (!pendingClientId) return;
-    if (!clients.some((c) => c.id === pendingClientId)) return;
-    setForm((prev) => ({ ...prev, client_id: pendingClientId }));
-    setPendingClientId(null);
-  }, [pendingClientId, clients]);
+    if (!pendente) return;
+    const salvo = clients.find((c) => c.id === pendente.id);
+    if (!salvo) return;
+    // Só seleciona se o cadastro de fato tem o papel do campo — quem abriu
+    // "novo artista" pode ter desmarcado "Artista" antes de salvar.
+    const cabe = pendente.papel === "artista" ? salvo.is_artist : salvo.is_client;
+    if (cabe) {
+      const campo = pendente.papel === "artista" ? "artist_id" : "client_id";
+      setForm((prev) => ({ ...prev, [campo]: pendente.id }));
+    }
+    setPendente(null);
+  }, [pendente, clients]);
+
+  /**
+   * Opções de cada seletor: só os ativos do papel — mais o já vinculado a
+   * este show, que precisa continuar visível na ficha mesmo inativo ou sem o
+   * papel (um cadastro pode ter perdido o papel depois do show ser criado).
+   */
+  const artistas = useMemo(
+    () =>
+      clients.filter(
+        (c) => (c.is_artist && c.active) || c.id === form.artist_id
+      ),
+    [clients, form.artist_id]
+  );
+  const contratantes = useMemo(
+    () =>
+      clients.filter(
+        (c) => (c.is_client && c.active) || c.id === form.client_id
+      ),
+    [clients, form.client_id]
+  );
 
   /**
    * Leva o olho até o card de contratos. É para lá que aponta tanto o botão
@@ -151,21 +187,27 @@ export function ShowForm() {
    * No blur, e não a cada tecla: corrigir a caixa no meio da digitação move o
    * cursor e atrapalha quem está escrevendo.
    */
-  function normalizarNome(key: "artist_name" | "artist_full_name" | "location") {
+  function normalizarNome(key: "location") {
     setForm((prev) => ({ ...prev, [key]: titleCase(prev[key]) }));
   }
 
   /** Valida o formulário inteiro; devolve os erros encontrados. */
   function validar(atual: FormState) {
     const novos: Partial<Record<keyof FormState, string>> = {};
-    if (!normalizarTexto(atual.artist_name)) {
-      novos.artist_name = "Informe o nome da ficha do artista.";
+    if (!atual.artist_id) {
+      novos.artist_id = "Escolha o artista do show.";
     }
     if (atual.event_date && !dataValida(atual.event_date)) {
       novos.event_date = "Data inválida.";
     }
     if (atual.event_time && !horaValida(atual.event_time)) {
       novos.event_time = "Horário inválido (use HH:MM).";
+    }
+    if (atual.event_end_time && !horaValida(atual.event_end_time)) {
+      novos.event_end_time = "Horário inválido (use HH:MM).";
+    } else if (atual.event_end_time && !atual.event_time) {
+      // Término sem início não descreve intervalo nenhum.
+      novos.event_end_time = "Informe também o horário de início.";
     }
     return novos;
   }
@@ -204,11 +246,11 @@ export function ShowForm() {
       } else if (data) {
         setInitialStatus(data.status);
         setForm({
-          artist_name: data.artist_name,
-          artist_full_name: data.artist_full_name ?? "",
+          artist_id: data.artist_id ?? "",
           client_id: data.client_id ?? "",
           event_date: data.event_date ?? "",
           event_time: formatHora(data.event_time),
+          event_end_time: formatHora(data.event_end_time),
           location: data.location ?? "",
           status: data.status,
           value: centavosParaMoeda(data.value_cents),
@@ -232,8 +274,6 @@ export function ShowForm() {
     // com a caixa arrumada): é o que o contrato vai imprimir.
     const limpo: FormState = {
       ...form,
-      artist_name: titleCase(form.artist_name),
-      artist_full_name: titleCase(form.artist_full_name),
       location: titleCase(form.location),
       payment_terms: normalizarTexto(form.payment_terms),
       notes: form.notes.trim(),
@@ -246,12 +286,18 @@ export function ShowForm() {
     setSaving(true);
     setError(null);
 
+    // As colunas de texto do artista são cópias do cadastro (o gatilho
+    // `sync_show_artist_names` as reescreve no banco de qualquer jeito), mas
+    // `artist_name` é NOT NULL, então o insert precisa mandá-la preenchida.
+    const artista = clients.find((c) => c.id === limpo.artist_id);
     const payload = {
-      artist_name: limpo.artist_name,
-      artist_full_name: limpo.artist_full_name || null,
+      artist_id: limpo.artist_id,
+      artist_name: artista?.name ?? "",
+      artist_full_name: artista?.full_name ?? null,
       client_id: limpo.client_id || null,
       event_date: limpo.event_date || null,
       event_time: limpo.event_time || null,
+      event_end_time: limpo.event_end_time || null,
       location: limpo.location || null,
       status: limpo.status,
       value_cents: limpo.value ? moedaParaCentavos(limpo.value) : null,
@@ -362,82 +408,40 @@ export function ShowForm() {
           </CardHeader>
           <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Dois nomes de propósito: o curto é o que circula no dia a dia
-                (Kanban, calendário, ficha técnica) e o completo é o único que
-                entra no contrato. */}
+            {/* Artista e cliente são dois cadastros distintos (o mesmo
+                cadastro pode ter os dois papéis): quem se apresenta e quem
+                contrata. Cada seletor lista só o seu papel e tem o "+" para
+                cadastrar sem sair da ficha. */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="artist_name">Nome da ficha (artista) *</Label>
-                <Input
-                  id="artist_name"
-                  value={form.artist_name}
-                  onChange={(e) => update("artist_name", e.target.value)}
-                  onBlur={() => normalizarNome("artist_name")}
-                  placeholder="Nome artístico / da banda"
-                  aria-invalid={Boolean(erros.artist_name)}
-                  required
-                />
-                {erros.artist_name ? (
-                  <p className="text-xs font-medium text-destructive">
-                    {erros.artist_name}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Aparece nas telas e na ficha técnica.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="artist_full_name">Nome completo</Label>
-                <Input
-                  id="artist_full_name"
-                  value={form.artist_full_name}
-                  onChange={(e) => update("artist_full_name", e.target.value)}
-                  onBlur={() => normalizarNome("artist_full_name")}
-                  placeholder="Nome civil completo"
-                />
-                <p className="text-xs text-muted-foreground">
-                  É este que sai no contrato. Em branco, o contrato usa o nome
-                  da ficha.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="client_id">Cliente</Label>
+                <Label htmlFor="artist_id">Artista *</Label>
                 <div className="flex gap-2">
                   {/* "" (e não undefined) mantém o Select controlado quando
-                      ainda não há cliente; o Radix exibe o placeholder do
+                      ainda não há escolha; o Radix exibe o placeholder do
                       mesmo jeito. */}
                   <Select
-                    value={form.client_id}
-                    onValueChange={(v) => update("client_id", v)}
+                    value={form.artist_id}
+                    onValueChange={(v) => update("artist_id", v)}
                   >
-                    <SelectTrigger id="client_id" className="flex-1">
-                      <SelectValue placeholder="Selecione um cliente" />
+                    <SelectTrigger
+                      id="artist_id"
+                      className="flex-1"
+                      aria-invalid={Boolean(erros.artist_id)}
+                    >
+                      <SelectValue placeholder="Selecione o artista" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clients.length === 0 && (
+                      {artistas.length === 0 && (
                         <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                          Nenhum cliente cadastrado
+                          Nenhum artista cadastrado
                         </div>
                       )}
-                      {/* Inativo não aparece na lista — a não ser que seja o
-                          cliente já vinculado a este show, que precisa
-                          continuar visível na ficha. */}
-                      {clients
-                        .filter(
-                          (client) =>
-                            client.active || client.id === form.client_id
-                        )
-                        .map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name}
-                            {client.active ? "" : " (inativo)"}
-                          </SelectItem>
-                        ))}
+                      {artistas.map((artista) => (
+                        <SelectItem key={artista.id} value={artista.id}>
+                          {artista.name}
+                          {artista.active ? "" : " (inativo)"}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Button
@@ -445,15 +449,67 @@ export function ShowForm() {
                     variant="outline"
                     size="icon"
                     className="shrink-0"
-                    onClick={() => setClientDialogOpen(true)}
+                    onClick={() => setCadastroAberto("artista")}
+                    title="Cadastrar novo artista"
+                    aria-label="Cadastrar novo artista"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {erros.artist_id ? (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.artist_id}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Quem se apresenta. Aparece no Kanban e no calendário.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="client_id">Cliente</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={form.client_id}
+                    onValueChange={(v) => update("client_id", v)}
+                  >
+                    <SelectTrigger id="client_id" className="flex-1">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contratantes.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Nenhum cliente cadastrado
+                        </div>
+                      )}
+                      {contratantes.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                          {client.active ? "" : " (inativo)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => setCadastroAberto("cliente")}
                     title="Cadastrar novo cliente"
                     aria-label="Cadastrar novo cliente"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Quem contrata. É o CONTRATANTE do contrato.
+                </p>
               </div>
+            </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>
                 <Select
@@ -471,43 +527,6 @@ export function ShowForm() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="event_date">Data do evento</Label>
-                {/* type="date"/"time": o próprio navegador já entrega
-                    "AAAA-MM-DD" e "HH:MM" (e mostra no formato do país), então
-                    a máscara aqui seria um passo a mais para errar. */}
-                <Input
-                  id="event_date"
-                  type="date"
-                  value={form.event_date}
-                  onChange={(e) => update("event_date", e.target.value)}
-                  aria-invalid={Boolean(erros.event_date)}
-                />
-                {erros.event_date && (
-                  <p className="text-xs font-medium text-destructive">
-                    {erros.event_date}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="event_time">Horário</Label>
-                <Input
-                  id="event_time"
-                  type="time"
-                  value={form.event_time}
-                  onChange={(e) => update("event_time", e.target.value)}
-                  aria-invalid={Boolean(erros.event_time)}
-                />
-                {erros.event_time && (
-                  <p className="text-xs font-medium text-destructive">
-                    {erros.event_time}
-                  </p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -531,6 +550,65 @@ export function ShowForm() {
                 {form.value && (
                   <p className="text-xs text-muted-foreground">
                     {formatMoeda(moedaParaCentavos(form.value))}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Data e o intervalo de horário lado a lado: "22:00 até 00:00"
+                é como o show é combinado, e é assim que vai para o contrato. */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="event_date">Data do evento</Label>
+                {/* type="date"/"time": o próprio navegador já entrega
+                    "AAAA-MM-DD" e "HH:MM" (e mostra no formato do país), então
+                    a máscara aqui seria um passo a mais para errar. */}
+                <Input
+                  id="event_date"
+                  type="date"
+                  value={form.event_date}
+                  onChange={(e) => update("event_date", e.target.value)}
+                  aria-invalid={Boolean(erros.event_date)}
+                />
+                {erros.event_date && (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.event_date}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="event_time">Horário de início</Label>
+                <Input
+                  id="event_time"
+                  type="time"
+                  value={form.event_time}
+                  onChange={(e) => update("event_time", e.target.value)}
+                  aria-invalid={Boolean(erros.event_time)}
+                />
+                {erros.event_time && (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.event_time}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="event_end_time">Horário de término</Label>
+                <Input
+                  id="event_end_time"
+                  type="time"
+                  value={form.event_end_time}
+                  onChange={(e) => update("event_end_time", e.target.value)}
+                  aria-invalid={Boolean(erros.event_end_time)}
+                />
+                {erros.event_end_time ? (
+                  <p className="text-xs font-medium text-destructive">
+                    {erros.event_end_time}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Pode virar a madrugada (22:00 até 00:00).
                   </p>
                 )}
               </div>
@@ -651,10 +729,13 @@ export function ShowForm() {
         )}
       </div>
 
+      {/* Um diálogo só para os dois "+": o papel com que ele abre decide o
+          que vem marcado e em qual seletor o cadastro novo entra. */}
       <ClientFormDialog
-        open={clientDialogOpen}
-        onOpenChange={setClientDialogOpen}
-        onSaved={handleClientSaved}
+        open={cadastroAberto !== null}
+        onOpenChange={(aberto) => !aberto && setCadastroAberto(null)}
+        papel={cadastroAberto ?? "cliente"}
+        onSaved={handleCadastroSalvo}
       />
     </div>
   );

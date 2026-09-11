@@ -23,8 +23,8 @@ import { contractFileName } from "@/lib/contract-pdf";
 import {
   formatDocumento,
   formatEndereco,
-  formatHora,
   formatTelefone,
+  horarioParaContrato,
 } from "@/lib/format";
 import type {
   Client,
@@ -171,17 +171,20 @@ export const emptyExtras: ContractExtras = {
 /**
  * Junta show + cliente + campos avulsos no formato que o modelo consome.
  *
- * Nomes: o contrato leva SEMPRE o nome completo; o nome da ficha (artístico,
- * curto) fica nas telas. Sem nome completo cadastrado a lacuna seria pior que
- * o nome curto, então ele entra como reserva.
+ * Contratante: o contrato leva SEMPRE o nome completo; o nome da ficha fica
+ * nas telas. Sem nome completo cadastrado a lacuna seria pior que o nome
+ * curto, então ele entra como reserva.
+ *
+ * Artista: NÃO entra. O modelo Carnellos imprime "Carnellos" fixo e o modelo
+ * Produção não cita artista — ver `ContractData`.
  *
  * Documento, telefone e endereço passam pelas funções de `lib/format` — as
  * mesmas do formulário e das planilhas —, então o contrato imprime exatamente
  * o que a ficha do cliente mostra.
  *
- * Horário: o do cadastro do show é o padrão, e o campo avulso do diálogo
- * continua podendo sobrescrevê-lo — ele aceita formas que a coluna `time` não
- * guarda ("23h às 01h").
+ * Horário: início e término do cadastro viram "22:00 às 00:00" (ou só
+ * "22:00"), e o campo avulso do diálogo continua podendo sobrescrevê-lo — ele
+ * aceita formas que as colunas `time` não guardam ("após o headliner").
  */
 export function buildContractData(
   show: Show,
@@ -189,14 +192,15 @@ export function buildContractData(
   extras: ContractExtras
 ): ContractData {
   return {
-    artist: show.artist_full_name?.trim() || show.artist_name,
     clientName: client?.full_name?.trim() || client?.name || "",
     clientDocument: formatDocumento(client?.document),
     clientPhone: formatTelefone(client?.phone),
     clientAddress: client ? formatEndereco(client) : "",
     eventName: extras.eventName,
     eventDate: show.event_date,
-    eventTime: extras.eventTime.trim() || formatHora(show.event_time),
+    eventTime:
+      extras.eventTime.trim() ||
+      horarioParaContrato(show.event_time, show.event_end_time),
     location: show.location ?? "",
     valueCents: show.value_cents,
     paymentTerms: show.payment_terms ?? "",

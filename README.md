@@ -48,8 +48,8 @@ npm run dev      # http://localhost:5173
 
 As migrations ficam em [`supabase/migrations`](./supabase/migrations). Tabelas criadas:
 
-- **clients** — `id, name, phone, email, created_at`
-- **shows** — `id, artist_name, client_id, event_date, location, status, value_cents, notes, created_at, updated_at`
+- **clients** — cadastro de PESSOAS, com dois papéis não exclusivos: `is_client` (contrata) e `is_artist` (se apresenta). `id, name (ficha), full_name, phone, email, document, endereço em partes, notes, active, is_client, is_artist, created_at`
+- **shows** — `id, artist_id (→ clients), client_id (→ clients), artist_name/artist_full_name (cópias do cadastro do artista, sincronizadas por gatilho), event_date, event_time (início), event_end_time (término), location, status, value_cents, payment_terms, production_roles, notes, created_at, updated_at`. Como há duas chaves para `clients`, todo embed precisa do hint (`clients!shows_client_id_fkey(...)` / `clients!shows_artist_id_fkey(...)`).
 - **proposals** — `id, show_id, template_used, sent_at, whatsapp_message_id, status`
 - **message_templates** — `id, name, content, variables (jsonb)`
 - **show_activities** — timeline do show (criação, status, notas, contrato, assinaturas)

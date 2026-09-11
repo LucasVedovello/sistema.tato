@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Mic2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -32,18 +33,25 @@ import {
   UFS,
 } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
-import type { Client } from "@/types/database";
+import { cn } from "@/lib/utils";
+import type { Client, Papel } from "@/types/database";
 
 interface ClientFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Cliente a editar. Ausente/null = novo cadastro. */
+  /** Cadastro a editar. Ausente/null = novo cadastro. */
   client?: Client | null;
-  /** Recebe o cliente já gravado (com id), para a tela chamadora atualizar. */
+  /**
+   * Papel que vem marcado num cadastro NOVO ("Novo artista" abre com
+   * "Artista" marcado; "Novo cliente", com "Cliente"). Ignorado ao editar —
+   * aí valem os papéis gravados.
+   */
+  papel?: Papel;
+  /** Recebe o cadastro já gravado (com id), para a tela chamadora atualizar. */
   onSaved: (client: Client) => void;
 }
 
-const empty = {
+const emptyTexto = {
   name: "",
   full_name: "",
   phone: "",
@@ -59,11 +67,25 @@ const empty = {
   notes: "",
 };
 
-type FormState = typeof empty;
-type Erros = Partial<Record<keyof FormState, string>>;
+/** Campos de texto do formulário — os únicos que passam por máscara/blur. */
+type CampoTexto = keyof typeof emptyTexto;
+
+type FormState = typeof emptyTexto & {
+  is_client: boolean;
+  is_artist: boolean;
+};
+
+type Erros = Partial<Record<keyof FormState | "papel", string>>;
+
+/** Formulário vazio já com o papel pedido marcado. */
+const vazio = (papel: Papel): FormState => ({
+  ...emptyTexto,
+  is_client: papel === "cliente",
+  is_artist: papel === "artista",
+});
 
 /** Campos de nome próprio: recebem capitalização automática ao sair do campo. */
-const NOMES: (keyof FormState)[] = [
+const NOMES: CampoTexto[] = [
   "name",
   "full_name",
   "logradouro",
@@ -73,9 +95,33 @@ const NOMES: (keyof FormState)[] = [
 ];
 
 /**
- * Formulário de cliente em diálogo. É o mesmo componente usado na seção
- * Clientes e no formulário de show (para cadastrar sem perder o preenchimento
- * do show em andamento).
+ * Os dois papéis de um cadastro. Não se excluem: a mesma pessoa pode ser o
+ * artista de um show e o contratante de outro.
+ */
+const PAPEIS: {
+  key: "is_client" | "is_artist";
+  label: string;
+  hint: string;
+  icon: typeof Users;
+}[] = [
+  {
+    key: "is_client",
+    label: "Cliente",
+    hint: "Contrata shows — é o CONTRATANTE do contrato.",
+    icon: Users,
+  },
+  {
+    key: "is_artist",
+    label: "Artista",
+    hint: "Se apresenta — aparece no seletor de artista do show.",
+    icon: Mic2,
+  },
+];
+
+/**
+ * Formulário de cadastro (cliente e/ou artista) em diálogo. É o mesmo
+ * componente usado na seção Clientes e no formulário de show (para cadastrar
+ * sem perder o preenchimento do show em andamento).
  *
  * Todo campo que vai parar no contrato entra com máscara e sai daqui
  * normalizado: é o cadastro que padroniza o dado, não o documento.
@@ -84,16 +130,17 @@ export function ClientFormDialog({
   open,
   onOpenChange,
   client,
+  papel = "cliente",
   onSaved,
 }: ClientFormDialogProps) {
   const isEditing = Boolean(client);
-  const [form, setForm] = useState<FormState>(empty);
+  const [form, setForm] = useState<FormState>(() => vazio(papel));
   const [erros, setErros] = useState<Erros>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Recarrega os campos sempre que o diálogo abre, para não vazar o
-  // preenchimento de um cliente anterior.
+  // preenchimento de um cadastro anterior.
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -101,6 +148,8 @@ export function ClientFormDialog({
     setForm(
       client
         ? {
+            is_client: client.is_client,
+            is_artist: client.is_artist,
             name: client.name,
             full_name: client.full_name ?? "",
             // Cadastros antigos podem ter vindo sem máscara; a formatação é
@@ -117,19 +166,25 @@ export function ClientFormDialog({
             cep: maskCEP(client.cep ?? ""),
             notes: client.notes ?? "",
           }
-        : empty
+        : vazio(papel)
     );
-  }, [open, client]);
+  }, [open, client, papel]);
 
-  function update(key: keyof FormState, value: string) {
+  function update(key: CampoTexto, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
     // O erro some assim que o campo é editado; a validação inteira roda de
     // novo no envio.
     setErros((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   }
 
+  /** Liga/desliga um papel. */
+  function togglePapel(key: "is_client" | "is_artist") {
+    setForm((prev) => ({ ...prev, [key]: !prev[key] }));
+    setErros((prev) => (prev.papel ? { ...prev, papel: undefined } : prev));
+  }
+
   /** Capitalização no blur: durante a digitação atrapalharia o cursor. */
-  function normalizarNome(key: keyof FormState) {
+  function normalizarNome(key: CampoTexto) {
     setForm((prev) => ({ ...prev, [key]: titleCase(prev[key]) }));
   }
 
@@ -139,7 +194,7 @@ export function ClientFormDialog({
    * O erro aparece na hora, e não só depois de tentar salvar: quem digitou um
    * CPF errado descobre ali, com o dado ainda fresco.
    */
-  function conferir(key: keyof FormState) {
+  function conferir(key: CampoTexto) {
     const encontrados = validar(form);
     setErros((prev) => ({ ...prev, [key]: encontrados[key] }));
   }
@@ -149,6 +204,10 @@ export function ClientFormDialog({
     const novos: Erros = {};
     if (!normalizarTexto(atual.name)) {
       novos.name = "Informe o nome da ficha.";
+    }
+    // O banco também recusa (clients_papel_check); aqui a mensagem é legível.
+    if (!atual.is_client && !atual.is_artist) {
+      novos.papel = "Marque pelo menos um papel: cliente ou artista.";
     }
     if (atual.document && !documentoValido(atual.document)) {
       novos.document = "CPF ou CNPJ inválido — confira os dígitos.";
@@ -190,6 +249,8 @@ export function ClientFormDialog({
 
     const ou = (valor: string) => valor.trim() || null;
     const payload = {
+      is_client: limpo.is_client,
+      is_artist: limpo.is_artist,
       name: limpo.name,
       full_name: ou(limpo.full_name),
       phone: ou(limpo.phone),
@@ -226,7 +287,7 @@ export function ClientFormDialog({
   }
 
   /** Mensagem de erro (ou a dica do campo, quando não há erro). */
-  function Ajuda({ campo, dica }: { campo: keyof FormState; dica?: string }) {
+  function Ajuda({ campo, dica }: { campo: keyof Erros; dica?: string }) {
     if (erros[campo]) {
       return (
         <p className="text-xs font-medium text-destructive">{erros[campo]}</p>
@@ -242,16 +303,59 @@ export function ClientFormDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar cliente" : "Novo cliente"}
+            {isEditing
+              ? "Editar cadastro"
+              : papel === "artista"
+                ? "Novo artista"
+                : "Novo cliente"}
           </DialogTitle>
           <DialogDescription>
-            Apenas o nome da ficha é obrigatório. O resto alimenta o contrato.
+            Apenas o nome da ficha é obrigatório. Um cadastro pode ser cliente
+            e artista ao mesmo tempo.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Papéis primeiro: é o que decide em qual seletor do show o
+              cadastro aparece. Mesmo desenho das funções de produção da
+              ficha do show. */}
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium leading-none">Papel *</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {PAPEIS.map(({ key, label, hint, icon: Icon }) => {
+                const marcado = form[key];
+                return (
+                  <label
+                    key={key}
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-sm transition-colors",
+                      marcado
+                        ? "border-primary bg-primary/5 font-medium"
+                        : "border-border hover:bg-accent"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 shrink-0 accent-primary"
+                      checked={marcado}
+                      onChange={() => togglePapel(key)}
+                    />
+                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0">
+                      <span className="block">{label}</span>
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {hint}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <Ajuda campo="papel" />
+          </fieldset>
+
           {/* Dois nomes: o da ficha é o que aparece nas telas; o completo
-              é o único que entra no contrato. */}
+              é o que entra no contrato como contratante. */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="client-name">Nome da ficha *</Label>
@@ -260,12 +364,19 @@ export function ClientFormDialog({
                 value={form.name}
                 onChange={(e) => update("name", e.target.value)}
                 onBlur={() => normalizarNome("name")}
-                placeholder="Como o cliente é chamado"
+                placeholder={
+                  form.is_artist && !form.is_client
+                    ? "Nome artístico / da banda"
+                    : "Como é chamado no dia a dia"
+                }
                 aria-invalid={Boolean(erros.name)}
                 required
                 autoFocus
               />
-              <Ajuda campo="name" dica="Usado nas listagens e na ficha do show." />
+              <Ajuda
+                campo="name"
+                dica="Usado nas listagens, no Kanban e na ficha do show."
+              />
             </div>
 
             <div className="space-y-2">
@@ -279,7 +390,11 @@ export function ClientFormDialog({
               />
               <Ajuda
                 campo="full_name"
-                dica="É este que sai no contrato. Em branco, usa o nome da ficha."
+                dica={
+                  form.is_client
+                    ? "É este que sai no contrato como contratante. Em branco, usa o nome da ficha."
+                    : "Nome civil / razão social. É o que o relatório mostra; em branco, usa o nome da ficha."
+                }
               />
             </div>
           </div>

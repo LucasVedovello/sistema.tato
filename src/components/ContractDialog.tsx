@@ -24,12 +24,25 @@ import {
   formatData,
   formatDocumento,
   formatEndereco,
-  formatHora,
   formatMoeda,
   formatTelefone,
+  horarioParaContrato,
   titleCase,
 } from "@/lib/format";
 import type { Client, Show, ShowContract } from "@/types/database";
+
+/**
+ * O que a cláusula do objeto diz sobre o artista, por modelo.
+ *
+ * Mostrado na prévia para ninguém procurar o nome da ficha do show no
+ * documento: o modelo Carnellos sempre imprime "Carnellos", e o de Produção
+ * não cita artista algum.
+ */
+function artistaNoContrato(key: ContractTemplateKey | null): string {
+  if (key === "carnellos") return "Carnellos (fixo no modelo)";
+  if (key === "producao") return "não citado (o modelo fala em “artistas”)";
+  return "definido pelo modelo";
+}
 
 /**
  * Escolha do modelo e emissão do contrato.
@@ -60,14 +73,17 @@ export function ContractDialog({
   const [error, setError] = useState<string | null>(null);
 
   // Cada abertura recomeça limpa — o diálogo fica montado entre um contrato e
-  // outro e herdaria a escolha anterior. O horário vem preenchido com o do
-  // cadastro do show, e continua editável (o modelo aceita "23h às 01h").
+  // outro e herdaria a escolha anterior. O horário vem preenchido com o
+  // intervalo do cadastro ("22:00 às 00:00"), e continua editável.
   useEffect(() => {
     if (!open) return;
     setTemplateKey(null);
-    setExtras({ ...emptyExtras, eventTime: formatHora(show.event_time) });
+    setExtras({
+      ...emptyExtras,
+      eventTime: horarioParaContrato(show.event_time, show.event_end_time),
+    });
     setError(null);
-  }, [open, show.event_time]);
+  }, [open, show.event_time, show.event_end_time]);
 
   function update<K extends keyof ContractExtras>(
     key: K,
@@ -170,12 +186,13 @@ export function ContractDialog({
 
         <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Dados que serão inseridos</p>
-          {/* Os nomes mostrados aqui são os que vão para o documento: o
-              completo, com o da ficha como reserva. */}
+          {/* O contratante mostrado é o que vai para o documento: o nome
+              completo, com o da ficha como reserva. O artista NÃO vem da
+              ficha do show: cada modelo decide (Carnellos fixo / nenhum). */}
           <p className="mt-1">
-            Artista: {show.artist_full_name?.trim() || show.artist_name} ·
-            Contratante: {client?.full_name?.trim() || client?.name || "—"} ·
-            Data: {formatData(show.event_date)} · Local: {show.location ?? "—"} ·
+            Artista: {artistaNoContrato(templateKey)} · Contratante:{" "}
+            {client?.full_name?.trim() || client?.name || "—"} · Data:{" "}
+            {formatData(show.event_date)} · Local: {show.location ?? "—"} ·
             Valor: {formatMoeda(show.value_cents)}
           </p>
           <p className="mt-1">
@@ -198,12 +215,13 @@ export function ContractDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="event_time">Horário da apresentação</Label>
-            {/* Preenchido com o horário do show; pode ser detalhado aqui. */}
+            {/* Preenchido com início e término do show; pode ser detalhado
+                aqui. "22:00 às 00:00" sai como "das 22:00 às 00:00". */}
             <Input
               id="event_time"
               value={extras.eventTime}
               onChange={(e) => update("eventTime", e.target.value)}
-              placeholder="23h às 01h"
+              placeholder="22:00 às 00:00"
             />
           </div>
           <div className="space-y-1.5">

@@ -20,7 +20,7 @@ export function ClosedShows() {
     (async () => {
       const { data, error } = await supabase
         .from("shows")
-        .select("*, clients(id, name)")
+        .select("*, clients!shows_client_id_fkey(id, name)")
         .eq("status", "fechado")
         .order("event_date", { ascending: false, nullsFirst: false });
 

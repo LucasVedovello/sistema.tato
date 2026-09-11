@@ -45,7 +45,7 @@ export function Contract() {
     (async () => {
       const { data, error } = await supabase
         .from("shows")
-        .select("*, clients(*)")
+        .select("*, clients!shows_client_id_fkey(*)")
         .eq("id", id)
         .single();
 

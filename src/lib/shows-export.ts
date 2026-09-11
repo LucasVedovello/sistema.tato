@@ -15,6 +15,8 @@ interface ExportRow {
   eventDate: Date | null;
   /** "20:30" — texto, porque o que interessa é ler, não calcular com a hora. */
   eventTime: string;
+  /** Horário de término, no mesmo formato. */
+  eventEndTime: string;
   client: string;
   value: number | null;
   production: string;
@@ -44,8 +46,13 @@ const COLUNAS: Column<ExportRow>[] = [
     width: 14,
   },
   {
-    header: { value: "Horário", ...CABECALHO },
+    header: { value: "Início", ...CABECALHO },
     cell: (row) => ({ type: String, value: row.eventTime }),
+    width: 10,
+  },
+  {
+    header: { value: "Término", ...CABECALHO },
+    cell: (row) => ({ type: String, value: row.eventEndTime }),
     width: 10,
   },
   {
@@ -84,6 +91,7 @@ function toRow(show: ShowWithClient): ExportRow {
     artist: show.artist_name,
     eventDate: show.event_date ? toUtcDate(show.event_date) : null,
     eventTime: formatHora(show.event_time),
+    eventEndTime: formatHora(show.event_end_time),
     client: show.clients?.name ?? "",
     value: show.value_cents == null ? null : show.value_cents / 100,
     production: productionSummary(show.production_roles),
@@ -99,7 +107,7 @@ function toRow(show: ShowWithClient): ExportRow {
  * reaproveitar o que a tela já carregou, para o arquivo refletir o estado
  * atual — inclusive as mudanças automáticas de status.
  */
-const consultaShows = () => supabase.from("shows").select("*, clients(id, name)");
+const consultaShows = () => supabase.from("shows").select("*, clients!shows_client_id_fkey(id, name)");
 
 /** Planilha com TODOS os shows — é o que o Dashboard mostra no Kanban. */
 export async function exportAllShowsToExcel(): Promise<number> {

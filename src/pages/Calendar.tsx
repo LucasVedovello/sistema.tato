@@ -16,7 +16,7 @@ import { exportCalendarShowsToExcel } from "@/lib/shows-export";
 import { supabase } from "@/lib/supabase";
 import { CALENDAR_STATUS_PRIORITY, STATUS_STYLES } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import { formatData, formatHora, formatMoeda, toDateOnly } from "@/lib/format";
+import { formatData, formatHorario, formatMoeda, toDateOnly } from "@/lib/format";
 import type { ShowStatus, ShowWithClient } from "@/types/database";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -69,7 +69,7 @@ export function Calendar() {
     (async () => {
       const { data, error } = await supabase
         .from("shows")
-        .select("*, clients(id, name)")
+        .select("*, clients!shows_client_id_fkey(id, name)")
         .gte("event_date", from)
         .lte("event_date", to)
         .order("event_date");
@@ -260,7 +260,10 @@ export function Calendar() {
                         a agenda ser lida sem abrir o dia. */}
                     <span className="mt-1 hidden space-y-0.5 overflow-hidden sm:block">
                       {list.slice(0, 2).map((show) => {
-                        const hora = formatHora(show.event_time);
+                        const hora = formatHorario(
+                          show.event_time,
+                          show.event_end_time
+                        );
                         return (
                           <span
                             key={show.id}
@@ -346,8 +349,8 @@ export function Calendar() {
                     <p className="truncate text-sm text-muted-foreground">
                       {show.clients?.name ?? "Sem cliente"}
                       {show.location ? ` · ${show.location}` : ""}
-                      {formatHora(show.event_time)
-                        ? ` · ${formatHora(show.event_time)}`
+                      {formatHorario(show.event_time, show.event_end_time)
+                        ? ` · ${formatHorario(show.event_time, show.event_end_time)}`
                         : ""}
                     </p>
                     <span

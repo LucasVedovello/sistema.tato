@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, Mic2, Settings2, TrendingUp, XCircle } from "lucide-react";
+import {
+  BarChart3,
+  Mic2,
+  Settings2,
+  TrendingUp,
+  Users,
+  XCircle,
+} from "lucide-react";
 
 import { ArtistManagerDialog } from "@/components/ArtistManagerDialog";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
@@ -13,17 +20,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  artistasDisponiveis,
   calcularFechadoPorPeriodo,
-  nomeDoArtista,
   calcularRelatorio,
+  DIMENSOES,
   ETAPAS_FUNIL,
   MESES,
-  PERIODOS_ARTISTA,
-  TODOS_OS_ARTISTAS,
+  nomeNaDimensao,
+  nomesDisponiveis,
+  PERIODOS_PAINEL,
+  SELECT_RELATORIO,
+  TODOS,
   TODOS_OS_MESES,
+  type Dimensao,
+  type Filtro,
   type LinhaShow,
-  type PeriodoArtista,
+  type PeriodoPainel,
 } from "@/lib/report";
 import { exportReportToExcel } from "@/lib/report-export";
 import { supabase } from "@/lib/supabase";
@@ -31,6 +42,12 @@ import { STATUS_STYLES } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { formatData, formatMoeda, parseDateOnly } from "@/lib/format";
 import type { ShowStatus } from "@/types/database";
+
+/** Ícone de cada aba do recorte. */
+const ICONE_DIMENSAO: Record<Dimensao, typeof Mic2> = {
+  artista: Mic2,
+  cliente: Users,
+};
 
 /** Cor da barra de cada etapa — a mesma usada no Kanban e no calendário. */
 const BARRA: Record<ShowStatus, string> = {
@@ -72,20 +89,20 @@ export function Reports() {
   const hoje = new Date();
   const [ano, setAno] = useState(String(hoje.getFullYear()));
   const [mes, setMes] = useState<string>(String(hoje.getMonth()));
-  const [artista, setArtista] = useState<string>(TODOS_OS_ARTISTAS);
-  const [periodoArtista, setPeriodoArtista] = useState<PeriodoArtista>("mes");
+  /**
+   * Aba (artistas/clientes) + nome escolhido nela. Trocar de aba volta para
+   * "todos": o nome de um artista não é um nome de cliente.
+   */
+  const [filtro, setFiltro] = useState<Filtro>({ por: "artista", nome: TODOS });
+  const [periodoPainel, setPeriodoPainel] = useState<PeriodoPainel>("mes");
 
   const [gerenciarAberto, setGerenciarAberto] = useState(false);
 
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("shows")
-      .select(
-        "id, status, value_cents, event_date, artist_name, artist_full_name"
-      );
+    const { data, error } = await supabase.from("shows").select(SELECT_RELATORIO);
 
     if (error) setError(error.message);
-    else setShows((data as LinhaShow[]) ?? []);
+    else setShows((data as unknown as LinhaShow[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -93,8 +110,13 @@ export function Reports() {
     void carregar();
   }, [carregar]);
 
-  /** Artistas que aparecem nos dados (todos os anos, não só o filtrado). */
-  const artistas = useMemo(() => artistasDisponiveis(shows), [shows]);
+  const dimensao = DIMENSOES.find((d) => d.key === filtro.por)!;
+  /** Nomes que aparecem nos dados na aba atual (todos os anos). */
+  const nomes = useMemo(
+    () => nomesDisponiveis(shows, filtro.por),
+    [shows, filtro.por]
+  );
+  const rotuloTodos = `Todos os ${dimensao.label.toLowerCase()}`;
 
   /**
    * Mês de referência do painel por artista.
@@ -112,8 +134,8 @@ export function Reports() {
       : Number(mes);
 
   const fechadoPorPeriodo = useMemo(
-    () => calcularFechadoPorPeriodo(shows, ano, mesReferencia, artista),
-    [shows, ano, mesReferencia, artista]
+    () => calcularFechadoPorPeriodo(shows, ano, mesReferencia, filtro),
+    [shows, ano, mesReferencia, filtro]
   );
 
   /** Anos que aparecem nos dados, mais o ano corrente. */
@@ -143,8 +165,8 @@ export function Reports() {
     semData,
     rotuloPeriodo,
   } = useMemo(
-    () => calcularRelatorio(shows, ano, mes, artista),
-    [shows, ano, mes, artista]
+    () => calcularRelatorio(shows, ano, mes, filtro),
+    [shows, ano, mes, filtro]
   );
 
   const maiorEtapa = Math.max(
@@ -166,25 +188,63 @@ export function Reports() {
           </h1>
           <p className="text-sm text-muted-foreground">
             Por data do evento. Período: {rotuloPeriodo}
-            {artista === TODOS_OS_ARTISTAS ? "" : ` · Artista: ${artista}`}.
+            {filtro.nome === TODOS
+              ? ""
+              : ` · ${filtro.por === "artista" ? "Artista" : "Cliente"}: ${filtro.nome}`}
+            .
           </p>
         </div>
 
-        {/* Filtros numa linha só, acima dos números. No celular os dois
-            selects dividem a largura e a exportação desce para a linha de
-            baixo. */}
+        {/* Filtros numa linha só, acima dos números. No celular os selects
+            dividem a largura e a exportação desce para a linha de baixo. */}
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          {/* O artista recorta o relatório inteiro — funil e conversão
+          {/* As abas trocam a dimensão do recorte: o mesmo relatório, visto
+              por quem se apresenta ou por quem contrata. */}
+          <div
+            className="flex w-full rounded-md border p-0.5 sm:w-auto"
+            role="tablist"
+            aria-label="Recortar por"
+          >
+            {DIMENSOES.map(({ key, label }) => {
+              const Icon = ICONE_DIMENSAO[key];
+              const ativo = key === filtro.por;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  data-testid={`aba-${key}`}
+                  onClick={() => setFiltro({ por: key, nome: TODOS })}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none",
+                    ativo
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* O nome recorta o relatório inteiro — funil e conversão
               inclusive —, e não só o painel de valores fechados. */}
-          <Select value={artista} onValueChange={setArtista}>
-            <SelectTrigger className="w-full sm:w-52" aria-label="Artista">
+          <Select
+            value={filtro.nome}
+            onValueChange={(nome) => setFiltro((prev) => ({ ...prev, nome }))}
+          >
+            <SelectTrigger
+              className="w-full sm:w-52"
+              aria-label={filtro.por === "artista" ? "Artista" : "Cliente"}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={TODOS_OS_ARTISTAS}>
-                Todos os artistas
-              </SelectItem>
-              {artistas.map((nome) => (
+              <SelectItem value={TODOS}>{rotuloTodos}</SelectItem>
+              {nomes.map((nome) => (
                 <SelectItem key={nome} value={nome}>
                   {nome}
                 </SelectItem>
@@ -192,17 +252,20 @@ export function Reports() {
             </SelectContent>
           </Select>
 
-          {/* Some com nomes que não deveriam estar na lista (cadastros de
-              teste, sobras) sem precisar abrir o banco. */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setGerenciarAberto(true)}
-            title="Gerenciar artistas"
-            aria-label="Gerenciar artistas"
-          >
-            <Settings2 className="h-4 w-4" />
-          </Button>
+          {/* Some com artistas que não deveriam estar na lista (cadastros de
+              teste, sobras) sem precisar abrir o banco. Só na aba de
+              artistas: cliente se oculta pela tela de Clientes. */}
+          {filtro.por === "artista" && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setGerenciarAberto(true)}
+              title="Gerenciar artistas"
+              aria-label="Gerenciar artistas"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          )}
 
           <Select value={mes} onValueChange={setMes}>
             <SelectTrigger className="w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Mês">
@@ -233,7 +296,7 @@ export function Reports() {
 
           {/* Exporta o período selecionado, com os mesmos números da tela. */}
           <ExportExcelButton
-            onExport={() => exportReportToExcel(ano, mes, artista, mesReferencia)}
+            onExport={() => exportReportToExcel(ano, mes, filtro, mesReferencia)}
             emptyMessage="Nenhum show no período — a planilha saiu com os totais zerados."
             className="w-full sm:w-auto"
           />
@@ -273,34 +336,36 @@ export function Reports() {
         />
       </div>
 
-      {/* Valor fechado por artista, nos três recortes de tempo. Os cartões
-          são também o seletor: o período escolhido manda na lista abaixo. */}
-      <Card data-testid="fechado-por-artista">
+      {/* Valor fechado por artista ou cliente (conforme a aba), nos três
+          recortes de tempo. Os cartões são também o seletor: o período
+          escolhido manda na lista abaixo. */}
+      <Card data-testid={`fechado-por-${filtro.por}`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Mic2 className="h-4 w-4 text-primary" />
-            Fechado por artista
+            {filtro.por === "artista" ? (
+              <Mic2 className="h-4 w-4 text-primary" />
+            ) : (
+              <Users className="h-4 w-4 text-primary" />
+            )}
+            {dimensao.titulo}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            {artista === TODOS_OS_ARTISTAS
-              ? "Todos os artistas"
-              : artista}{" "}
-            · só shows com status “Fechado”. Toque num período para ver os
-            shows dele.
+            {filtro.nome === TODOS ? rotuloTodos : filtro.nome} · só shows com
+            status “Fechado”. Toque num período para ver os shows dele.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3" role="tablist">
-            {PERIODOS_ARTISTA.map(({ key, label }) => {
+            {PERIODOS_PAINEL.map(({ key, label }) => {
               const dados = fechadoPorPeriodo[key];
-              const ativo = key === periodoArtista;
+              const ativo = key === periodoPainel;
               return (
                 <button
                   key={key}
                   type="button"
                   role="tab"
                   aria-selected={ativo}
-                  onClick={() => setPeriodoArtista(key)}
+                  onClick={() => setPeriodoPainel(key)}
                   data-testid={`periodo-${key}`}
                   className={cn(
                     "rounded-lg border p-4 text-left transition-colors",
@@ -321,23 +386,29 @@ export function Reports() {
             })}
           </div>
 
-          {fechadoPorPeriodo[periodoArtista].shows.length === 0 ? (
+          {fechadoPorPeriodo[periodoPainel].shows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhum show fechado em {fechadoPorPeriodo[periodoArtista].rotulo}.
+              Nenhum show fechado em {fechadoPorPeriodo[periodoPainel].rotulo}.
             </p>
           ) : (
             <ul className="max-h-72 divide-y overflow-y-auto rounded-lg border">
-              {fechadoPorPeriodo[periodoArtista].shows.map((show) => (
+              {fechadoPorPeriodo[periodoPainel].shows.map((show) => (
                 <li
                   key={show.id}
                   className="flex items-center justify-between gap-3 p-3 text-sm"
                 >
                   <span className="min-w-0">
+                    {/* Nome da dimensão em destaque; a outra parte do show
+                        segue na linha de baixo, junto da data. */}
                     <span className="block truncate font-medium">
-                      {nomeDoArtista(show)}
+                      {nomeNaDimensao(show, filtro.por)}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatData(show.event_date)}
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {formatData(show.event_date)} ·{" "}
+                      {nomeNaDimensao(
+                        show,
+                        filtro.por === "artista" ? "cliente" : "artista"
+                      )}
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold tabular-nums">
@@ -419,7 +490,7 @@ export function Reports() {
         shows={shows}
         onChanged={() => {
           // O artista escolhido pode ter acabado de sair da lista.
-          setArtista(TODOS_OS_ARTISTAS);
+          setFiltro((prev) => ({ ...prev, nome: TODOS }));
           void carregar();
         }}
       />

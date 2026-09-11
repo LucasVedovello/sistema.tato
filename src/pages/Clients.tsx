@@ -4,6 +4,7 @@ import {
   EyeOff,
   Mail,
   MapPin,
+  Mic2,
   Pencil,
   Phone,
   Plus,
@@ -29,16 +30,37 @@ import { Input } from "@/components/ui/input";
 import { exportClientsToExcel } from "@/lib/clients-export";
 import { formatEndereco, formatTelefone } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
-import type { Client, ClientWithShowCount } from "@/types/database";
+import { cn } from "@/lib/utils";
+import type { Client, ClientWithShowCount, Papel } from "@/types/database";
+
+/** Abas de papel da listagem. "todos" mostra o cadastro inteiro. */
+type FiltroPapel = Papel | "todos";
+
+const FILTROS_PAPEL: { key: FiltroPapel; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "cliente", label: "Clientes" },
+  { key: "artista", label: "Artistas" },
+];
+
+const temPapel = (client: Client, papel: FiltroPapel) =>
+  papel === "todos" ||
+  (papel === "cliente" ? client.is_client : client.is_artist);
+
+/** Total de shows em que a pessoa aparece, somando os dois papéis. */
+const totalShows = (client: ClientWithShowCount) =>
+  (client.shows?.[0]?.count ?? 0) + (client.shows_artista?.[0]?.count ?? 0);
 
 export function Clients() {
   const [clients, setClients] = useState<ClientWithShowCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [papel, setPapel] = useState<FiltroPapel>("todos");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
+  /** Papel pré-marcado ao abrir "Novo cliente" / "Novo artista". */
+  const [papelNovo, setPapelNovo] = useState<Papel>("cliente");
   /** Cliente que está sendo removido — abre o diálogo de ocultar/excluir. */
   const [removendo, setRemovendo] = useState<ClientWithShowCount | null>(null);
   const [mostrarInativos, setMostrarInativos] = useState(false);
@@ -47,7 +69,7 @@ export function Clients() {
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("clients")
-      .select("*, shows(count)")
+      .select("*, shows!shows_client_id_fkey(count), shows_artista:shows!shows_artist_id_fkey(count)")
       .order("name");
 
     if (error) setError(error.message);
@@ -67,17 +89,29 @@ export function Clients() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     // Inativos ficam fora por padrão: some das listas sem perder o histórico.
-    const visiveis = mostrarInativos ? clients : clients.filter((c) => c.active);
+    const visiveis = (
+      mostrarInativos ? clients : clients.filter((c) => c.active)
+    ).filter((c) => temPapel(c, papel));
     if (!term) return visiveis;
     return visiveis.filter((c) =>
       [c.name, c.full_name, c.phone, c.email, c.cidade]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(term))
     );
-  }, [clients, search, mostrarInativos]);
+  }, [clients, search, mostrarInativos, papel]);
 
-  function openNew() {
+  /** Contagem de ativos por papel, para o subtítulo. */
+  const ativos = useMemo(() => {
+    const lista = clients.filter((c) => c.active);
+    return {
+      clientes: lista.filter((c) => c.is_client).length,
+      artistas: lista.filter((c) => c.is_artist).length,
+    };
+  }, [clients]);
+
+  function openNew(papel: Papel) {
     setEditing(null);
+    setPapelNovo(papel);
     setDialogOpen(true);
   }
 
@@ -120,16 +154,17 @@ export function Clients() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Users className="h-6 w-6 text-primary" />
-            Clientes
+            Clientes e artistas
           </h1>
           <p className="text-sm text-muted-foreground">
-            {clients.filter((c) => c.active).length} cliente(s) ativo(s)
+            {ativos.clientes} cliente(s) · {ativos.artistas} artista(s)
             {inativos > 0 ? ` · ${inativos} inativo(s)` : ""}.
           </p>
         </div>
-        {/* No celular as duas ações dividem a largura da tela; a partir de
-            sm voltam a ficar à direita do título. */}
-        <div className="flex w-full flex-col items-stretch gap-2 min-[420px]:flex-row sm:w-auto sm:items-start">
+        {/* No celular as ações dividem a largura da tela; a partir de sm
+            voltam a ficar à direita do título. Os dois "Novo" têm o mesmo
+            peso: cliente e artista são cadastros irmãos. */}
+        <div className="flex w-full flex-col items-stretch gap-2 min-[420px]:flex-row min-[420px]:flex-wrap sm:w-auto sm:items-start">
           {inativos > 0 && (
             <Button
               variant="outline"
@@ -151,22 +186,61 @@ export function Clients() {
             emptyMessage="Nenhum cliente cadastrado ainda."
             className="w-full sm:w-auto"
           />
-          <Button onClick={openNew} className="w-full sm:w-auto">
+          <Button
+            onClick={() => openNew("cliente")}
+            className="w-full sm:w-auto"
+            data-testid="novo-cliente"
+          >
             <Plus className="h-4 w-4" />
             Novo cliente
+          </Button>
+          <Button
+            onClick={() => openNew("artista")}
+            className="w-full sm:w-auto"
+            data-testid="novo-artista"
+          >
+            <Mic2 className="h-4 w-4" />
+            Novo artista
           </Button>
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nome, telefone ou e-mail"
-          className="pl-9"
-          aria-label="Buscar clientes"
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Abas de papel, no mesmo desenho das abas dos relatórios. */}
+        <div
+          className="flex rounded-md border p-0.5"
+          role="tablist"
+          aria-label="Filtrar por papel"
+        >
+          {FILTROS_PAPEL.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={papel === key}
+              onClick={() => setPapel(key)}
+              className={cn(
+                "rounded-sm px-3 py-1.5 text-sm font-medium transition-colors",
+                papel === key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome, telefone ou e-mail"
+            className="pl-9"
+            aria-label="Buscar cadastros"
+          />
+        </div>
       </div>
 
       {error && (
@@ -176,17 +250,17 @@ export function Clients() {
       )}
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando clientes…</p>
+        <p className="text-muted-foreground">Carregando cadastros…</p>
       ) : filtered.length === 0 ? (
         <Card className="p-10 text-center text-muted-foreground">
           {clients.length === 0
-            ? "Nenhum cliente cadastrado ainda."
-            : "Nenhum cliente encontrado para essa busca."}
+            ? "Nenhum cadastro ainda."
+            : "Nenhum cadastro encontrado para essa busca."}
         </Card>
       ) : (
         <Card className="divide-y">
           {filtered.map((client) => {
-            const showCount = client.shows?.[0]?.count ?? 0;
+            const showCount = totalShows(client);
             return (
               <div
                 key={client.id}
@@ -195,6 +269,20 @@ export function Clients() {
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{client.name}</p>
+                    {/* Selos de papel: na aba "Todos" é o que diz se a
+                        pessoa contrata, se apresenta, ou os dois. */}
+                    {client.is_client && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                        <Users className="h-3 w-3" />
+                        Cliente
+                      </span>
+                    )}
+                    {client.is_artist && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200">
+                        <Mic2 className="h-3 w-3" />
+                        Artista
+                      </span>
+                    )}
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {showCount} show(s)
                     </span>
@@ -290,24 +378,24 @@ export function Clients() {
           <DialogHeader>
             <DialogTitle>Remover “{removendo?.name}”?</DialogTitle>
             <DialogDescription>
-              {(removendo?.shows?.[0]?.count ?? 0) > 0
-                ? `Este cliente tem ${removendo?.shows?.[0]?.count} show(s) vinculado(s).`
-                : "Este cliente não tem shows vinculados."}
+              {removendo && totalShows(removendo) > 0
+                ? `Este cadastro tem ${totalShows(removendo)} show(s) vinculado(s).`
+                : "Este cadastro não tem shows vinculados."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 text-sm">
             <p className="rounded-md border bg-muted/40 p-3">
               <span className="font-medium text-foreground">Ocultar:</span> o
-              nome sai das listagens e do seletor de cliente do show, mas os
+              nome sai das listagens e dos seletores da ficha do show, mas os
               shows e contratos antigos continuam intactos. Dá para reativar
               quando quiser.
             </p>
             <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
               <span className="font-medium text-destructive">Excluir:</span>{" "}
               apaga o cadastro de vez.
-              {(removendo?.shows?.[0]?.count ?? 0) > 0
-                ? " Os shows não são apagados, mas ficam sem contratante."
+              {removendo && totalShows(removendo) > 0
+                ? " Os shows não são apagados, mas perdem o vínculo (ficam sem contratante ou só com o nome do artista)."
                 : ""}{" "}
               Não dá para desfazer.
             </p>
@@ -347,6 +435,7 @@ export function Clients() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         client={editing}
+        papel={papelNovo}
         onSaved={() => void load()}
       />
     </div>

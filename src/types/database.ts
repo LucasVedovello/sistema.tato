@@ -24,9 +24,15 @@ export const SHOW_STATUS_LABELS: Record<ShowStatus, string> = {
 // de propósito: o supabase-js exige que cada tabela satisfaça
 // `Record<string, unknown>`, e interfaces (por serem "abertas") não são
 // atribuíveis a esse tipo — o que degradaria toda a inferência para `never`.
+/**
+ * Uma PESSOA do cadastro — a tabela continua se chamando `clients` por
+ * história, mas desde 2026-09-11 ela guarda quem contrata E quem se
+ * apresenta. Os dois papéis não se excluem: o mesmo cadastro pode ser artista
+ * num show e cliente noutro.
+ */
 export type Client = {
   id: string;
-  /** Nome da ficha: curto, como o escritório chama o cliente. Só uso interno. */
+  /** Nome da ficha: curto, como o escritório chama a pessoa. Só uso interno. */
   name: string;
   /**
    * Nome completo — o único que vai para o contrato. Vazio cai no `name`:
@@ -56,19 +62,41 @@ export type Client = {
    * vinculado aos shows e contratos antigos.
    */
   active: boolean;
+  /** Pode ser escolhido como CONTRATANTE de um show. */
+  is_client: boolean;
+  /** Pode ser escolhido como ARTISTA de um show. */
+  is_artist: boolean;
   created_at: string;
 };
 
+/** Papel de uma pessoa do cadastro, para filtros e rótulos. */
+export type Papel = "cliente" | "artista";
+
 export type Show = {
   id: string;
-  /** Nome da ficha do artista (nome artístico). Não vai para o contrato. */
+  /**
+   * Cadastro do artista (`clients.is_artist`). Anulável no banco por causa de
+   * `on delete set null`; o formulário sempre exige um.
+   */
+  artist_id: string | null;
+  /**
+   * CÓPIA do nome da ficha do artista, sincronizada por gatilho a partir do
+   * cadastro. Continua aqui porque é o que Kanban, calendário, planilhas e a
+   * RPC pública leem — sem precisar de join.
+   */
   artist_name: string;
-  /** Nome completo do artista — o único que vai para o contrato. */
+  /**
+   * CÓPIA do nome completo do artista. Shows anteriores a 2026-09-11 podem
+   * carregar o valor antigo (que na prática era o nome do cliente) até serem
+   * salvos de novo — por isso o relatório prefere o join com o cadastro.
+   */
   artist_full_name: string | null;
   client_id: string | null;
   event_date: string | null;
-  /** Horário do evento, "HH:MM:SS" (coluna `time`, sem fuso). */
+  /** Horário de INÍCIO, "HH:MM:SS" (coluna `time`, sem fuso). */
   event_time: string | null;
+  /** Horário de TÉRMINO. Pode ser menor que o de início (vira a madrugada). */
+  event_end_time: string | null;
   location: string | null;
   status: ShowStatus;
   value_cents: number | null;
@@ -92,12 +120,18 @@ export type ShowWithClient = Show & {
 };
 
 /**
- * Cliente com a contagem de shows vinculados.
+ * Pessoa com a contagem de shows vinculados em cada papel.
+ *
  * O PostgREST devolve agregações de relação como array de um elemento
- * (`shows: [{ count: 3 }]`), inclusive quando o total é zero.
+ * (`shows: [{ count: 3 }]`), inclusive quando o total é zero. Como `shows`
+ * tem DUAS chaves para `clients`, cada contagem precisa dizer qual usa:
+ * `shows!shows_client_id_fkey(count)` e `shows_artista:shows!shows_artist_id_fkey(count)`.
  */
 export type ClientWithShowCount = Client & {
+  /** Shows em que a pessoa é o contratante. */
   shows: { count: number }[];
+  /** Shows em que a pessoa é o artista. */
+  shows_artista: { count: number }[];
 };
 
 /** Tipo de evento na timeline do show. */
@@ -245,12 +279,16 @@ export interface Database {
     Tables: {
       clients: {
         Row: Client;
-        // `active` sai do Insert obrigatório: a coluna tem default `true` no
-        // banco, e todo cadastro novo nasce ativo.
-        Insert: OptionalNullable<Omit<Client, "id" | "created_at" | "active">> & {
+        // `active` e os papéis saem do Insert obrigatório: têm default no
+        // banco (ativo, cliente, não artista).
+        Insert: OptionalNullable<
+          Omit<Client, "id" | "created_at" | "active" | "is_client" | "is_artist">
+        > & {
           id?: string;
           created_at?: string;
           active?: boolean;
+          is_client?: boolean;
+          is_artist?: boolean;
         };
         Update: Partial<Omit<Client, "id" | "created_at">>;
         Relationships: [];
@@ -263,10 +301,20 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Omit<Show, "id" | "created_at">>;
+        // Duas chaves para a mesma tabela: todo embed de `clients` a partir
+        // de `shows` (e vice-versa) precisa do hint `!shows_client_id_fkey`
+        // ou `!shows_artist_id_fkey`, senão o PostgREST recusa por ambiguidade.
         Relationships: [
           {
             foreignKeyName: "shows_client_id_fkey";
             columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "shows_artist_id_fkey";
+            columns: ["artist_id"];
             isOneToOne: false;
             referencedRelation: "clients";
             referencedColumns: ["id"];

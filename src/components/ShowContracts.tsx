@@ -54,7 +54,7 @@ export function ShowContracts({ showId }: { showId: string }) {
 
   const load = useCallback(async () => {
     const [showResult, contractsResult] = await Promise.all([
-      supabase.from("shows").select("*, clients(*)").eq("id", showId).single(),
+      supabase.from("shows").select("*, clients!shows_client_id_fkey(*)").eq("id", showId).single(),
       supabase
         .from("show_contracts")
         .select("*")

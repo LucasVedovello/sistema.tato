@@ -4,10 +4,14 @@ import { CABECALHO, MOEDA, salvarPlanilhaLivre } from "@/lib/excel";
 import {
   calcularFechadoPorPeriodo,
   calcularRelatorio,
+  DIMENSOES,
   ETAPAS_FUNIL,
   MESES,
-  TODOS_OS_ARTISTAS,
+  SELECT_RELATORIO,
+  TODOS,
   TODOS_OS_MESES,
+  todos,
+  type Filtro,
   type LinhaShow,
 } from "@/lib/report";
 import { STATUS_STYLES } from "@/lib/status";
@@ -40,31 +44,30 @@ const VAZIO: Row = [];
 export async function exportReportToExcel(
   ano: string,
   mes: string,
-  artista: string = TODOS_OS_ARTISTAS,
-  /** Mês de referência do bloco por artista (0..11), como na tela. */
+  filtro: Filtro = todos("artista"),
+  /** Mês de referência do bloco por artista/cliente (0..11), como na tela. */
   mesReferencia?: number
 ): Promise<number> {
-  const { data, error } = await supabase
-    .from("shows")
-    .select(
-      "id, status, value_cents, event_date, artist_name, artist_full_name"
-    );
+  const { data, error } = await supabase.from("shows").select(SELECT_RELATORIO);
   if (error) throw new Error(error.message);
 
-  const shows = (data as LinhaShow[]) ?? [];
-  const r = calcularRelatorio(shows, ano, mes, artista);
+  const shows = (data as unknown as LinhaShow[]) ?? [];
+  const r = calcularRelatorio(shows, ano, mes, filtro);
 
   const mesRef =
     mesReferencia ??
     (mes === TODOS_OS_MESES ? new Date().getMonth() : Number(mes));
-  const porPeriodo = calcularFechadoPorPeriodo(shows, ano, mesRef, artista);
+  const porPeriodo = calcularFechadoPorPeriodo(shows, ano, mesRef, filtro);
+  const dimensao = DIMENSOES.find((d) => d.key === filtro.por)!;
 
   const linhas: Row[] = [
     [texto("Relatório de shows", true)],
     [texto("Período"), texto(r.rotuloPeriodo)],
     [
-      texto("Artista"),
-      texto(artista === TODOS_OS_ARTISTAS ? "Todos os artistas" : artista),
+      texto(filtro.por === "artista" ? "Artista" : "Cliente"),
+      texto(
+        filtro.nome === TODOS ? `Todos os ${dimensao.label.toLowerCase()}` : filtro.nome
+      ),
     ],
     [
       texto("Gerado em"),
@@ -102,9 +105,9 @@ export async function exportReportToExcel(
     ],
     VAZIO,
 
-    // Mesmo bloco do painel "Fechado por artista" da tela: só shows fechados,
-    // nos três recortes de tempo.
-    [texto("Fechado por artista", true)],
+    // Mesmo bloco do painel "Fechado por artista/cliente" da tela: só shows
+    // fechados, nos três recortes de tempo.
+    [texto(dimensao.titulo, true)],
     [texto("Período", true), texto("Valor", true), texto("Shows", true)],
     [
       texto(porPeriodo.mes.rotulo),

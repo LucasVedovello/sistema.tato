@@ -9,28 +9,91 @@
 import { parseDateOnly } from "@/lib/format";
 import type { ShowStatus } from "@/types/database";
 
-/** Só o que o relatório usa de cada show. */
+/** Os dois nomes de um cadastro, como o relatório os lê. */
+type NomesCadastro = { name: string; full_name: string | null };
+
+/**
+ * Só o que o relatório usa de cada show.
+ *
+ * Artista e cliente vêm por JOIN com o cadastro (`artista:clients!…`,
+ * `clients!…`), e não pelas cópias de texto do show: shows anteriores a
+ * 2026-09-11 ainda carregam em `artist_full_name` o nome do CLIENTE (era onde
+ * o campo acabava sendo usado), e o relatório não pode agrupar por isso.
+ */
 export type LinhaShow = {
   id: string;
   status: ShowStatus;
   value_cents: number | null;
   event_date: string | null;
-  /** Nome da ficha — fica no dashboard, não aparece aqui. */
+  /** Cópia do nome da ficha do artista — reserva para show sem cadastro. */
   artist_name: string;
-  /** Nome completo: é ELE que o relatório mostra e agrupa. */
+  /** Cópia do nome completo do artista — idem. */
   artist_full_name: string | null;
+  /** Cadastro do artista (null em show cujo artista foi apagado). */
+  artista: NomesCadastro | null;
+  /** Cadastro do contratante (null em show sem cliente). */
+  clients: NomesCadastro | null;
 };
+
+/**
+ * Colunas que o relatório lê — a tela e a planilha fazem a MESMA consulta.
+ *
+ * Os hints `!shows_artist_id_fkey` / `!shows_client_id_fkey` são
+ * obrigatórios: `shows` tem duas chaves para `clients`, e sem dizer qual o
+ * PostgREST recusa o embed por ambiguidade.
+ */
+export const SELECT_RELATORIO =
+  "id, status, value_cents, event_date, artist_name, artist_full_name, " +
+  "artista:clients!shows_artist_id_fkey(name, full_name), " +
+  "clients!shows_client_id_fkey(name, full_name)";
+
+/** "Sem cliente" no filtro e nas listas. */
+export const SEM_CLIENTE = "Sem cliente";
+
+/** Nome completo com o da ficha como reserva. */
+const nomeCompleto = (cadastro: NomesCadastro): string =>
+  cadastro.full_name?.trim() || cadastro.name;
 
 /**
  * Nome do artista no relatório.
  *
  * Vale a mesma regra do contrato: relatório fala pelo nome completo; o nome da
- * ficha ("Carnellos - Baile Run", com o evento junto) é apelido de trabalho e
- * fica no dashboard. Sem nome completo cadastrado, cai na ficha — melhor um
- * nome curto do que uma linha vazia no relatório.
+ * ficha é apelido de trabalho e fica no dashboard. Sem nome completo
+ * cadastrado, cai na ficha — melhor um nome curto do que uma linha vazia.
+ *
+ * Só quando o show não tem cadastro de artista (apagado, ou anterior ao
+ * vínculo) é que as cópias de texto do próprio show entram.
  */
 export const nomeDoArtista = (show: LinhaShow): string =>
-  show.artist_full_name?.trim() || show.artist_name;
+  show.artista
+    ? nomeCompleto(show.artista)
+    : show.artist_full_name?.trim() || show.artist_name;
+
+/** Nome do cliente no relatório, pela mesma regra. */
+export const nomeDoCliente = (show: LinhaShow): string =>
+  show.clients ? nomeCompleto(show.clients) : SEM_CLIENTE;
+
+/**
+ * Por quem o relatório é recortado: pelo artista que se apresenta ou pelo
+ * cliente que contrata. As duas abas da tela são a mesma conta com esta
+ * chave trocada.
+ */
+export type Dimensao = "artista" | "cliente";
+
+export const DIMENSOES: { key: Dimensao; label: string; titulo: string }[] = [
+  { key: "artista", label: "Artistas", titulo: "Fechado por artista" },
+  { key: "cliente", label: "Clientes", titulo: "Fechado por cliente" },
+];
+
+/** O nome pelo qual um show entra na dimensão escolhida. */
+export const nomeNaDimensao = (show: LinhaShow, por: Dimensao): string =>
+  por === "artista" ? nomeDoArtista(show) : nomeDoCliente(show);
+
+/** Recorte do relatório: dimensão + nome escolhido (ou TODOS). */
+export interface Filtro {
+  por: Dimensao;
+  nome: string;
+}
 
 /**
  * Etapas do funil, na ordem da negociação.
@@ -60,39 +123,40 @@ export const MESES = [
 export const TODOS_OS_MESES = "todos";
 
 /**
- * Valor do filtro de artista quando nenhum artista foi escolhido.
+ * Valor do filtro quando nenhum nome foi escolhido ("todos os artistas" /
+ * "todos os clientes").
  *
- * Os sublinhados evitam a colisão com um artista que se chame "todos": o
+ * Os sublinhados evitam a colisão com um cadastro que se chame "todos": o
  * seletor usaria o mesmo valor em duas opções e a escolha ficaria ambígua.
  */
-export const TODOS_OS_ARTISTAS = "__todos__";
+export const TODOS = "__todos__";
 
-/** Períodos do painel "fechado por artista". */
-export type PeriodoArtista = "mes" | "semestre" | "ano";
+/** Filtro "todos" numa dimensão. */
+export const todos = (por: Dimensao): Filtro => ({ por, nome: TODOS });
 
-export const PERIODOS_ARTISTA: { key: PeriodoArtista; label: string }[] = [
+/** Períodos do painel "fechado por artista/cliente". */
+export type PeriodoPainel = "mes" | "semestre" | "ano";
+
+export const PERIODOS_PAINEL: { key: PeriodoPainel; label: string }[] = [
   { key: "mes", label: "Mês" },
   { key: "semestre", label: "Semestre" },
   { key: "ano", label: "Ano" },
 ];
 
-/** Artistas que aparecem nos dados, em ordem alfabética. */
-export function artistasDisponiveis(shows: LinhaShow[]): string[] {
+/** Nomes que aparecem nos dados numa dimensão, em ordem alfabética. */
+export function nomesDisponiveis(shows: LinhaShow[], por: Dimensao): string[] {
   const nomes = new Set<string>();
   for (const show of shows) {
-    const nome = nomeDoArtista(show)?.trim();
+    const nome = nomeNaDimensao(show, por).trim();
     if (nome) nomes.add(nome);
   }
   return [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
-/** Recorta a lista pelo artista escolhido. "todos" devolve tudo. */
-export function filtrarPorArtista(
-  shows: LinhaShow[],
-  artista: string
-): LinhaShow[] {
-  if (artista === TODOS_OS_ARTISTAS) return shows;
-  return shows.filter((s) => nomeDoArtista(s) === artista);
+/** Recorta a lista pelo filtro. TODOS devolve tudo. */
+export function filtrar(shows: LinhaShow[], filtro: Filtro): LinhaShow[] {
+  if (filtro.nome === TODOS) return shows;
+  return shows.filter((s) => nomeNaDimensao(s, filtro.por) === filtro.nome);
 }
 
 const zeradoPorStatus = (): Record<ShowStatus, number> => ({
@@ -129,19 +193,19 @@ const somaFechados = (lista: LinhaShow[]) =>
 /**
  * Recorta e resume os shows para o ano/mês escolhidos.
  *
- * O artista entra como recorte ANTES de qualquer conta: com um artista
- * selecionado, todos os números da tela (funil, conversão, totais) passam a
- * ser dele — um filtro que só mudasse um cartão confundiria mais do que
- * ajudaria.
+ * O filtro (artista ou cliente) entra como recorte ANTES de qualquer conta:
+ * com um nome selecionado, todos os números da tela (funil, conversão,
+ * totais) passam a ser dele — um filtro que só mudasse um cartão confundiria
+ * mais do que ajudaria.
  */
 export function calcularRelatorio(
   shows: LinhaShow[],
   ano: string,
   mes: string,
-  artista: string = TODOS_OS_ARTISTAS
+  filtro: Filtro = todos("artista")
 ): Relatorio {
   const anoNum = Number(ano);
-  shows = filtrarPorArtista(shows, artista);
+  shows = filtrar(shows, filtro);
 
   const doAno = shows.filter(
     (s) => s.event_date && parseDateOnly(s.event_date).getFullYear() === anoNum
@@ -193,7 +257,7 @@ export interface TotalFechado {
   shows: LinhaShow[];
 }
 
-/** Os três recortes do painel por artista, sempre calculados juntos. */
+/** Os três recortes do painel por artista/cliente, sempre calculados juntos. */
 export interface FechadoPorPeriodo {
   mes: TotalFechado;
   semestre: TotalFechado;
@@ -213,7 +277,8 @@ const totalFechado = (rotulo: string, lista: LinhaShow[]): TotalFechado => {
 };
 
 /**
- * Valor FECHADO no mês, no semestre e no ano — opcionalmente de um artista só.
+ * Valor FECHADO no mês, no semestre e no ano — opcionalmente de um artista ou
+ * cliente só.
  *
  * `mesRef` é o mês de referência (0..11): dele saem tanto o recorte mensal
  * quanto o semestre correspondente. Só shows com status "fechado" entram; os
@@ -223,12 +288,12 @@ export function calcularFechadoPorPeriodo(
   shows: LinhaShow[],
   ano: string,
   mesRef: number,
-  artista: string = TODOS_OS_ARTISTAS
+  filtro: Filtro = todos("artista")
 ): FechadoPorPeriodo {
   const anoNum = Number(ano);
-  const doArtista = filtrarPorArtista(shows, artista);
+  const recorte = filtrar(shows, filtro);
 
-  const doAno = doArtista.filter(
+  const doAno = recorte.filter(
     (s) => s.event_date && parseDateOnly(s.event_date).getFullYear() === anoNum
   );
   const semestre = semestreDoMes(mesRef);

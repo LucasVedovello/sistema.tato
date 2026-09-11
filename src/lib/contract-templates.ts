@@ -141,10 +141,15 @@ export const SIGNATURE_FIELDS: SignatureField[] = [
 export const signatureField = (party: "client" | "office"): SignatureField =>
   SIGNATURE_FIELDS.find((f) => f.party === party)!;
 
-/** Dados do show/cliente que entram no overlay. */
+/**
+ * Dados do show/cliente que entram no overlay.
+ *
+ * Não há campo de artista de propósito: no modelo Carnellos o artista é
+ * SEMPRE "Carnellos", fixo no texto; no modelo Produção o nome do artista não
+ * aparece — a cláusula fala em "contratação de artistas por meio do
+ * escritório". O que a ficha do show diz no campo "artista" não chega aqui.
+ */
 export interface ContractData {
-  /** Nome COMPLETO do artista (o da ficha não entra em contrato). */
-  artist: string;
   /** Nome COMPLETO do contratante. */
   clientName: string;
   clientDocument: string;
@@ -203,17 +208,33 @@ const mesmoTexto = (a: string, b: string): boolean => {
 const ou = (valor: string, vazio = "____________") =>
   valor.trim() ? valor.trim() : vazio;
 
+/** Uma hora escrita como "20:00", "20h30" ou "20h". */
+const HORA = String.raw`\d{1,2}(?:[:h]\d{2}|h)`;
+const HORA_CHEIA = new RegExp(`^${HORA}$`, "i");
+/** Faixa "22:00 às 00:00", "22h - 00h", "22:00–00:00", "22h até 00h". */
+const FAIXA = new RegExp(
+  String.raw`^(${HORA})\s*(?:às|as|a|até|ate|-|–|—)\s*(${HORA})$`,
+  "i"
+);
+
 /**
  * Como o horário entra na frase da cláusula 1.
  *
- * Uma hora cheia ("20:00", "20h30") pede a preposição: "às 20:00". O campo do
- * diálogo também aceita faixas e descrições ("23h às 01h", "após o headliner"),
- * e aí "às" quebraria a frase — nesses casos volta a forma neutra.
+ * O campo chega do cadastro do show como "22:00" (só início) ou
+ * "22:00 às 00:00" (início e término, ver `horarioParaContrato`), e o diálogo
+ * deixa editar. Cada forma pede uma preposição:
+ *   - hora cheia -> "às 22:00";
+ *   - faixa      -> "das 22:00 às 00:00";
+ *   - descrição livre ("após o headliner") -> "no horário …", a forma neutra
+ *     que não quebra a frase.
  */
 const horario = (valor: string): string => {
   const texto = valor.trim();
   if (!texto) return "em horário a combinar";
-  return /^\d{1,2}[:h]\d{2}$/.test(texto) ? `às ${texto}` : `no horário ${texto}`;
+  if (HORA_CHEIA.test(texto)) return `às ${texto}`;
+  const faixa = FAIXA.exec(texto);
+  if (faixa) return `das ${faixa[1]} às ${faixa[2]}`;
+  return `no horário ${texto}`;
 };
 
 /* ==========================================================================
@@ -427,9 +448,12 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             box: BOXES.objeto,
             redact: true,
             justify: true,
+            // O artista é fixo: este modelo é do escritório Carnellos Music
+            // e só contrata o show do Carnellos — o campo "artista" da ficha
+            // do show não entra aqui, seja o que for.
             text:
               `O presente contrato tem por objeto a contratação do show do ` +
-              `artista ${ou(d.artist)}, a ser realizado na data de ${
+              `artista Carnellos, a ser realizado na data de ${
                 d.eventDate ? formatData(d.eventDate) : "__/__/____"
               }, em ${local}, ${horario(d.eventTime)}.`,
           },
@@ -515,10 +539,12 @@ export const CONTRACT_TEMPLATES: Record<ContractTemplateKey, ContractTemplate> =
             box: BOXES.objeto,
             redact: true,
             justify: true,
+            // Sem nome de artista, de propósito: o escritório contrata
+            // artistas em geral e o documento não cita qual.
             text:
-              `O presente contrato tem por objeto a contratação do artista ` +
-              `${ou(d.artist)}, por meio do escritório CV Produção Artística, ` +
-              `para apresentação na data de ${
+              `O presente contrato tem por objetivo a contratação de artistas ` +
+              `por meio do escritório CV Produção Artística, para apresentação ` +
+              `na data de ${
                 d.eventDate ? formatData(d.eventDate) : "__/__/____"
               }, ${evento}em ${local}, ${horario(d.eventTime)}.`,
           },

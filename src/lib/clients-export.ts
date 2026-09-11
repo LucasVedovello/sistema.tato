@@ -12,6 +12,8 @@ import type { ClientWithShowCount } from "@/types/database";
 interface ClientRow {
   name: string;
   fullName: string;
+  /** "Cliente", "Artista" ou "Cliente, Artista". */
+  papel: string;
   phone: string;
   email: string;
   document: string;
@@ -31,6 +33,11 @@ const COLUNAS: Column<ClientRow>[] = [
     header: { value: "Nome completo", ...CABECALHO },
     cell: (row) => ({ type: String, value: row.fullName }),
     width: 32,
+  },
+  {
+    header: { value: "Papel", ...CABECALHO },
+    cell: (row) => ({ type: String, value: row.papel }),
+    width: 16,
   },
   {
     header: { value: "Telefone", ...CABECALHO },
@@ -66,15 +73,16 @@ const COLUNAS: Column<ClientRow>[] = [
 ];
 
 /**
- * Planilha dos clientes cadastrados, com quantos shows cada um tem.
+ * Planilha do cadastro (clientes e artistas), com quantos shows cada um tem.
  *
- * A contagem vem do próprio PostgREST (`shows(count)`), que devolve a
- * agregação como array de um elemento — inclusive quando o total é zero.
+ * As contagens vêm do próprio PostgREST (`shows!<fk>(count)`), que devolve a
+ * agregação como array de um elemento — inclusive quando o total é zero. São
+ * duas porque a pessoa pode entrar no show como contratante ou como artista.
  */
 export async function exportClientsToExcel(): Promise<number> {
   const { data, error } = await supabase
     .from("clients")
-    .select("*, shows(count)")
+    .select("*, shows!shows_client_id_fkey(count), shows_artista:shows!shows_artist_id_fkey(count)")
     .order("name");
   if (error) throw new Error(error.message);
 
@@ -82,13 +90,18 @@ export async function exportClientsToExcel(): Promise<number> {
     (client): ClientRow => ({
       name: client.name,
       fullName: client.full_name ?? "",
+      papel: [client.is_client && "Cliente", client.is_artist && "Artista"]
+        .filter(Boolean)
+        .join(", "),
       // Mesmas funções da tela e do contrato: a planilha não inventa
       // formato próprio.
       phone: formatTelefone(client.phone),
       email: client.email ?? "",
       document: formatDocumento(client.document),
       address: formatEndereco(client),
-      shows: client.shows?.[0]?.count ?? 0,
+      shows:
+        (client.shows?.[0]?.count ?? 0) +
+        (client.shows_artista?.[0]?.count ?? 0),
       notes: client.notes ?? "",
     })
   );

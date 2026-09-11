@@ -316,6 +316,42 @@ export function horaValida(valor: string): boolean {
   return Number(match[1]) <= 23 && Number(match[2]) <= 59;
 }
 
+/**
+ * Intervalo de horário para EXIBIÇÃO nas telas: "22:00 – 00:00".
+ *
+ * Só com início: "22:00". Só com término (não deveria acontecer — o
+ * formulário exige o início): "até 00:00". Nada: string vazia, pelo mesmo
+ * motivo de `formatHora`.
+ */
+export function formatHorario(
+  inicio: string | null | undefined,
+  fim: string | null | undefined
+): string {
+  const de = formatHora(inicio);
+  const ate = formatHora(fim);
+  if (de && ate) return `${de} – ${ate}`;
+  if (de) return de;
+  return ate ? `até ${ate}` : "";
+}
+
+/**
+ * O mesmo intervalo na forma que o CONTRATO entende: "22:00 às 00:00".
+ *
+ * É o texto que preenche o campo "Horário da apresentação" do diálogo de
+ * contrato; `contract-templates.ts` reconhece esta forma e escreve
+ * "das 22:00 às 00:00" na cláusula do objeto. Sem término, sai "22:00" e a
+ * cláusula usa "às 22:00".
+ */
+export function horarioParaContrato(
+  inicio: string | null | undefined,
+  fim: string | null | undefined
+): string {
+  const de = formatHora(inicio);
+  const ate = formatHora(fim);
+  if (de && ate) return `${de} às ${ate}`;
+  return de || ate;
+}
+
 /* ==========================================================================
  * ENDEREÇO
  * ======================================================================= */

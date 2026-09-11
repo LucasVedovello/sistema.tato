@@ -35,7 +35,7 @@ import {
 } from "@/lib/status";
 import { useIsMobile } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
-import { formatData, formatHora, formatMoeda } from "@/lib/format";
+import { formatData, formatHorario, formatMoeda } from "@/lib/format";
 import {
   SHOW_STATUSES,
   SHOW_STATUS_LABELS,
@@ -60,7 +60,7 @@ function ShowCardBody({
   /** Desliga a alça de arrasto nos cards que não se arrastam. */
   arrastavel?: boolean;
 }) {
-  const hora = formatHora(show.event_time);
+  const hora = formatHorario(show.event_time, show.event_end_time);
 
   return (
     <>
@@ -361,7 +361,7 @@ export function KanbanBoard({ onOpenShow }: { onOpenShow: (id: string) => void }
     (async () => {
       const { data, error } = await supabase
         .from("shows")
-        .select("*, clients(id, name)")
+        .select("*, clients!shows_client_id_fkey(id, name)")
         .order("event_date", { ascending: true, nullsFirst: false });
 
       if (!active) return;
